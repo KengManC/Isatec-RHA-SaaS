@@ -1,0 +1,223 @@
+{
+  "id": "55043007-8a4e-42ef-b56e-fd1ebfcaec8c",
+  "name": "[RHA] Junda Smells",
+  "type": "dashboard",
+  "content": {
+    "version": 15,
+    "variables": [],
+    "tiles": {
+      "0": {
+        "type": "markdown",
+        "content": "# Junda Smells\nStandard host and service health for **rha75589**. Built from `dashboards/junda-smells/` in the Isatec-RHA-SaaS repo."
+      },
+      "1": {
+        "type": "data",
+        "title": "Hosts",
+        "query": "fetch dt.entity.host\n| summarize Hosts = count()",
+        "visualization": "singleValue"
+      },
+      "2": {
+        "type": "data",
+        "title": "Avg CPU %",
+        "query": "timeseries cpu = avg(dt.host.cpu.usage)\n| fields `Avg CPU %` = arrayAvg(cpu)",
+        "visualization": "singleValue"
+      },
+      "3": {
+        "type": "data",
+        "title": "Avg memory %",
+        "query": "timeseries mem = avg(dt.host.memory.usage)\n| fields `Avg memory %` = arrayAvg(mem)",
+        "visualization": "singleValue"
+      },
+      "4": {
+        "type": "data",
+        "title": "Service requests",
+        "query": "timeseries req = sum(dt.service.request.count)\n| fields Requests = arraySum(req)",
+        "visualization": "singleValue"
+      },
+      "5": {
+        "type": "data",
+        "title": "Failure rate %",
+        "query": "timeseries { req = sum(dt.service.request.count), fail = sum(dt.service.request.failure_count) }\n| fields `Failure rate %` = 100 * arraySum(fail) / arraySum(req)",
+        "visualization": "singleValue"
+      },
+      "6": {
+        "type": "markdown",
+        "content": "## Hosts"
+      },
+      "7": {
+        "type": "data",
+        "title": "CPU usage % by host",
+        "query": "timeseries v = avg(dt.host.cpu.usage), by: {dt.entity.host}\n| fieldsAdd host = entityName(dt.entity.host)\n| fieldsRemove dt.entity.host",
+        "visualization": "lineChart"
+      },
+      "8": {
+        "type": "data",
+        "title": "Memory usage % by host",
+        "query": "timeseries v = avg(dt.host.memory.usage), by: {dt.entity.host}\n| fieldsAdd host = entityName(dt.entity.host)\n| fieldsRemove dt.entity.host",
+        "visualization": "lineChart"
+      },
+      "9": {
+        "type": "data",
+        "title": "Disk used % by host",
+        "query": "timeseries v = max(dt.host.disk.used.percent), by: {dt.entity.host}\n| fieldsAdd host = entityName(dt.entity.host)\n| fieldsRemove dt.entity.host",
+        "visualization": "lineChart"
+      },
+      "10": {
+        "type": "data",
+        "title": "Network traffic (all hosts)",
+        "query": "timeseries { received = sum(dt.host.net.nic.bytes_rx), sent = sum(dt.host.net.nic.bytes_tx) }",
+        "visualization": "areaChart"
+      },
+      "11": {
+        "type": "data",
+        "title": "CPU load (5m) by host",
+        "query": "timeseries v = avg(dt.host.cpu.load5m), by: {dt.entity.host}\n| fieldsAdd host = entityName(dt.entity.host)\n| fieldsRemove dt.entity.host",
+        "visualization": "lineChart"
+      },
+      "12": {
+        "type": "data",
+        "title": "Host overview",
+        "query": "timeseries { cpu = avg(dt.host.cpu.usage), mem = avg(dt.host.memory.usage), disk = max(dt.host.disk.used.percent) }, by: {dt.entity.host}\n| fields Host = entityName(dt.entity.host), `CPU %` = arrayAvg(cpu), `Memory %` = arrayAvg(mem), `Max disk %` = arrayMax(disk)\n| sort `CPU %` desc",
+        "visualization": "table"
+      },
+      "13": {
+        "type": "markdown",
+        "content": "## Services"
+      },
+      "14": {
+        "type": "data",
+        "title": "Requests by service",
+        "query": "timeseries v = sum(dt.service.request.count), by: {dt.entity.service}\n| fieldsAdd service = entityName(dt.entity.service)\n| fieldsRemove dt.entity.service",
+        "visualization": "barChart"
+      },
+      "15": {
+        "type": "data",
+        "title": "Response time by service",
+        "query": "timeseries v = avg(dt.service.request.response_time), by: {dt.entity.service}\n| fieldsAdd service = entityName(dt.entity.service)\n| fieldsRemove dt.entity.service",
+        "visualization": "lineChart"
+      },
+      "16": {
+        "type": "data",
+        "title": "Failed requests by service",
+        "query": "timeseries v = sum(dt.service.request.failure_count), by: {dt.entity.service}\n| fieldsAdd service = entityName(dt.entity.service)\n| fieldsRemove dt.entity.service",
+        "visualization": "barChart"
+      },
+      "17": {
+        "type": "data",
+        "title": "Service overview",
+        "query": "timeseries { req = sum(dt.service.request.count), fail = sum(dt.service.request.failure_count), rt = avg(dt.service.request.response_time) }, by: {dt.entity.service}\n| fields Service = entityName(dt.entity.service), Requests = arraySum(req), Failures = arraySum(fail), `Avg response time (µs)` = arrayAvg(rt)\n| sort Requests desc",
+        "visualization": "table"
+      }
+    },
+    "layouts": {
+      "0": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 2
+      },
+      "1": {
+        "x": 0,
+        "y": 2,
+        "w": 4,
+        "h": 3
+      },
+      "2": {
+        "x": 4,
+        "y": 2,
+        "w": 5,
+        "h": 3
+      },
+      "3": {
+        "x": 9,
+        "y": 2,
+        "w": 5,
+        "h": 3
+      },
+      "4": {
+        "x": 14,
+        "y": 2,
+        "w": 5,
+        "h": 3
+      },
+      "5": {
+        "x": 19,
+        "y": 2,
+        "w": 5,
+        "h": 3
+      },
+      "6": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 1
+      },
+      "7": {
+        "x": 0,
+        "y": 6,
+        "w": 12,
+        "h": 6
+      },
+      "8": {
+        "x": 12,
+        "y": 6,
+        "w": 12,
+        "h": 6
+      },
+      "9": {
+        "x": 0,
+        "y": 12,
+        "w": 8,
+        "h": 6
+      },
+      "10": {
+        "x": 8,
+        "y": 12,
+        "w": 8,
+        "h": 6
+      },
+      "11": {
+        "x": 16,
+        "y": 12,
+        "w": 8,
+        "h": 6
+      },
+      "12": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 6
+      },
+      "13": {
+        "x": 0,
+        "y": 24,
+        "w": 24,
+        "h": 1
+      },
+      "14": {
+        "x": 0,
+        "y": 25,
+        "w": 8,
+        "h": 6
+      },
+      "15": {
+        "x": 8,
+        "y": 25,
+        "w": 8,
+        "h": 6
+      },
+      "16": {
+        "x": 16,
+        "y": 25,
+        "w": 8,
+        "h": 6
+      },
+      "17": {
+        "x": 0,
+        "y": 31,
+        "w": 24,
+        "h": 6
+      }
+    }
+  }
+}
