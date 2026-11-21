@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": ["Bash(dtctl get:*)", "Bash(dtctl query:*)", "Bash(dtctl describe:*)", "Bash(dtctl diff:*)", "Bash(dtctl doctor:*)",
+              "PowerShell(dtctl get:*)", "PowerShell(dtctl query:*)", "PowerShell(dtctl describe:*)", "PowerShell(dtctl diff:*)", "PowerShell(dtctl doctor:*)"],
+    "ask":   ["Bash(dtctl apply:*)", "Bash(dtctl create:*)", "Bash(dtctl edit:*)", "Bash(dtctl delete:*)", "Bash(npx dt-app deploy:*)",
+              "PowerShell(dtctl apply:*)", "PowerShell(dtctl create:*)", "PowerShell(dtctl edit:*)", "PowerShell(dtctl delete:*)", "PowerShell(npx dt-app deploy:*)"]
+  }
+}
