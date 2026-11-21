@@ -1,0 +1,69 @@
+# Nightly backup of every "[RHA] " dashboard, notebook and workflow from rha75589.
+# Exports go to the long-lived "backups" branch (one commit per day when something changed,
+# so git history = full version history) and to a 90-day workflow artifact.
+name: Backup
+
+on:
+  schedule:
+    - cron: "0 18 * * *"   # 02:00 Malaysia time (UTC+8)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: backup-rha75589
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      DT_ENVIRONMENT: ${{ secrets.DT_ENVIRONMENT }}
+      DT_PLATFORM_TOKEN: ${{ secrets.DT_PLATFORM_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up dtctl
+        run: scripts/ci/dtctl-setup.sh
+      - name: Export [RHA] resources
+        run: |
+          set -euo pipefail
+          set -f   # no globbing: "[RHA]" must stay literal
+          out="$RUNNER_TEMP/snapshot"; mkdir -p "$out"/{dashboards,notebooks,workflows}
+          export_type() {   # $1 = list command args, $2 = single-get resource, $3 = folder
+            ids=$(dtctl get $1 --no-agent -o json \
+                  | jq -r '.[]? | select((.name // .title // "") | startswith("[RHA] ")) | .id')
+            for id in $ids; do
+              dtctl get "$2" "$id" --no-agent -o yaml > "$out/$3/$id.yaml"
+            done
+            echo "$3: $(echo "$ids" | grep -c . || true)" | tee -a "$GITHUB_STEP_SUMMARY"
+          }
+          export_type "dashboards --name [RHA]" dashboard dashboards
+          export_type "notebooks --name [RHA]"  notebook  notebooks
+          export_type "workflows --filter [RHA]" workflow workflows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rha75589-backup-${{ github.run_id }}
+          path: ${{ runner.temp }}/snapshot
+          retention-days: 90
+      - name: Commit to backups branch
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin backups >/dev/null; then
+            git fetch -q origin backups && git checkout -q backups
+          else
+            git checkout -q --orphan backups && git rm -rq --cached . && git clean -fdxq
+            printf '# Backups\nNightly exports of [RHA] resources from rha75589, written by .github/workflows/backup.yml on main.\nDo not edit by hand. Restore with: dtctl apply -f <file>\n' > README.md
+          fi
+          rm -rf dashboards notebooks workflows
+          cp -r "$RUNNER_TEMP/snapshot/." .
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes since last backup."
+          else
+            git commit -qm "backup: rha75589 $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push -q origin backups
+            echo "Backup committed." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi

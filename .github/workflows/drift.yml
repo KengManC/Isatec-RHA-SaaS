@@ -1,0 +1,66 @@
+# Daily check that the live tenant still matches main.
+# If anything tracked in this repo was edited in the Dynatrace UI, an issue labelled "drift"
+# is opened (or updated) listing the resources. Closed automatically when back in sync.
+name: Drift check
+
+on:
+  schedule:
+    - cron: "0 0 * * *"   # 08:00 Malaysia time (UTC+8)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    env:
+      DT_ENVIRONMENT: ${{ secrets.DT_ENVIRONMENT }}
+      DT_PLATFORM_TOKEN: ${{ secrets.DT_PLATFORM_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find tracked resources
+        id: files
+        run: |
+          files=""
+          for f in $(git ls-files dashboards notebooks workflows | grep -E '\.(json|ya?ml)$' || true); do
+            scripts/ci/has-id.sh "$f" && files="$files $f"
+          done
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+      - name: Set up dtctl
+        if: steps.files.outputs.files != ''
+        run: scripts/ci/dtctl-setup.sh
+      - name: Compare with rha75589
+        if: steps.files.outputs.files != ''
+        run: |
+          set -uo pipefail
+          report="$RUNNER_TEMP/drift.md"; drifted=0; errors=0
+          echo "Resources whose live state differs from \`main\` (checked $(date -u +%Y-%m-%dT%H:%MZ)):" > "$report"
+          echo >> "$report"
+          for f in ${{ steps.files.outputs.files }}; do
+            dtctl diff -f "$f" --no-agent --quiet >/dev/null 2>&1; rc=$?
+            case $rc in
+              0) ;;
+              1) echo "- [ ] \`$f\` changed in Dynatrace" >> "$report"; drifted=$((drifted+1)) ;;
+              *) echo "- [ ] \`$f\` could not be checked (missing in tenant or error)" >> "$report"; errors=$((errors+1)) ;;
+            esac
+          done
+          cat >> "$report" <<'EOF'
+
+          **To fix:** either export the live version into the repo
+          (`dtctl get <type> <id> -o yaml > <file>`, then open a PR) or re-run the **Deploy** workflow to overwrite the UI change.
+          EOF
+          cat "$report" >> "$GITHUB_STEP_SUMMARY"
+
+          gh label create drift --color B60205 --description "Live tenant differs from repo" 2>/dev/null || true
+          issue=$(gh issue list --label drift --state open --json number --jq '.[0].number // empty')
+          if [ $((drifted+errors)) -gt 0 ]; then
+            if [ -n "$issue" ]; then gh issue edit "$issue" --body-file "$report"
+            else gh issue create --label drift --title "Drift detected in rha75589" --body-file "$report"; fi
+          elif [ -n "$issue" ]; then
+            gh issue close "$issue" --comment "Back in sync as of $(date -u +%Y-%m-%dT%H:%MZ)."
+          else
+            echo "No drift."
+          fi
