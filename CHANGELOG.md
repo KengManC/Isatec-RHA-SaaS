@@ -15,6 +15,8 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
 ## [Unreleased]
 
 ### Added
+- Dashboard `[RHA] Junda Smells` (`dashboards/junda-smells/`): standard host (CPU, memory, disk,
+  network, load) and service (requests, response time, failures) metrics.
 - GitHub Actions: PR checks (validation, changelog check, `dtctl diff` comment), deploy on merge
   to `main`, nightly backup to the `backups` branch, daily drift check.
 - `CHANGELOG.md`, pull request template, `CODEOWNERS` and Dependabot configuration.
