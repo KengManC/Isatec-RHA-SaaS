@@ -1,0 +1,14 @@
+# Secrets — never commit
+.claude/settings.local.json
+.env
+.env.*
+
+# Build / dependencies
+node_modules/
+dist/
+.dt-app/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
