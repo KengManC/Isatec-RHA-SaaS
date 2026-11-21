@@ -1,0 +1,105 @@
+# Deploys to rha75589 when changes land on main.
+#  - documents: dtctl apply for changed dashboards/notebooks/workflows (snapshot taken first)
+#               new resources get their generated ID stamped back via an automatic PR
+#  - apps:      npx dt-app deploy for changed apps/* (skipped until the OAuth client secrets exist)
+# Deleted files are NOT deleted in Dynatrace; that stays a manual, deliberate step.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths: ["dashboards/**", "notebooks/**", "workflows/**", "apps/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: deploy-rha75589
+  cancel-in-progress: false
+
+jobs:
+  documents:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      DT_ENVIRONMENT: ${{ secrets.DT_ENVIRONMENT }}
+      DT_PLATFORM_TOKEN: ${{ secrets.DT_PLATFORM_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Find changed resources
+        id: changed
+        run: |
+          before="${{ github.event.before }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || ! git cat-file -e "$before" 2>/dev/null; then
+            before=$(git hash-object -t tree /dev/null)   # manual run: treat everything as changed
+          fi
+          files=$(scripts/ci/changed-resources.sh "$before" HEAD | tr '\n' ' ')
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+          git diff --name-only --diff-filter=D "$before" HEAD -- dashboards notebooks workflows \
+            | sed 's/^/::warning::Deleted in repo but NOT in Dynatrace (delete manually if intended): /' || true
+      - name: Set up dtctl
+        if: steps.changed.outputs.files != ''
+        run: scripts/ci/dtctl-setup.sh
+      - name: Apply
+        if: steps.changed.outputs.files != ''
+        run: |
+          set -euo pipefail
+          for f in ${{ steps.changed.outputs.files }}; do
+            if scripts/ci/has-id.sh "$f"; then
+              echo "::group::update $f"
+              dtctl apply -f "$f" --no-agent --show-diff --create-snapshot \
+                --snapshot-description "CI ${GITHUB_SHA::7}"
+            else
+              echo "::group::create $f"
+              dtctl apply -f "$f" --no-agent --write-id
+            fi
+            echo "::endgroup::"
+            echo "- \`$f\`" >> "$GITHUB_STEP_SUMMARY"
+          done
+      - name: Open PR with stamped IDs for new resources
+        if: steps.changed.outputs.files != ''
+        run: |
+          git diff --quiet && { echo "No new IDs to stamp."; exit 0; }
+          branch="ci/stamp-ids-${GITHUB_RUN_ID}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git commit -am "chore: stamp Dynatrace IDs for newly created resources"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" --label skip-changelog \
+            --title "chore: stamp Dynatrace IDs (run ${GITHUB_RUN_ID})" \
+            --body "Resources created by deploy run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Merge so future deploys update them in place instead of creating duplicates."
+
+  apps:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      DT_APP_OAUTH_CLIENT_ID: ${{ secrets.DT_APP_OAUTH_CLIENT_ID }}
+      DT_APP_OAUTH_CLIENT_SECRET: ${{ secrets.DT_APP_OAUTH_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Deploy changed apps
+        run: |
+          set -euo pipefail
+          before="${{ github.event.before }}"
+          git cat-file -e "$before" 2>/dev/null && [ "${{ github.event_name }}" != "workflow_dispatch" ] \
+            || before=$(git hash-object -t tree /dev/null)
+          apps=$(git diff --name-only "$before" HEAD -- apps | cut -d/ -f2 | sort -u)
+          [ -z "$apps" ] && { echo "No app changes."; exit 0; }
+          if [ -z "$DT_APP_OAUTH_CLIENT_ID" ] || [ -z "$DT_APP_OAUTH_CLIENT_SECRET" ]; then
+            echo "::warning::App changes found ($apps) but DT_APP_OAUTH_CLIENT_ID/SECRET secrets are not set. Skipping app deploy."
+            exit 0
+          fi
+          for a in $apps; do
+            [ -f "apps/$a/package.json" ] || continue
+            echo "::group::deploy $a"
+            (cd "apps/$a" && npm ci && npx dt-app deploy)
+            echo "::endgroup::"
+          done

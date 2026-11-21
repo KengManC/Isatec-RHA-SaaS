@@ -1,0 +1,6 @@
+# Every change needs a review from the repository owner.
+*                 @KengManC
+# Pipeline, scripts and Claude settings: changes here affect what reaches Dynatrace.
+/.github/         @KengManC
+/scripts/         @KengManC
+/.claude/         @KengManC
