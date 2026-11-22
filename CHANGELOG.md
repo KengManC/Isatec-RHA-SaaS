@@ -15,6 +15,8 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
 ## [Unreleased]
 
 ### Changed
+- Notebook `[RHA] Claude's Default Testing Notebook`: top-3 JustGo services tile grouped to one row per
+  breach window, with the services side by side (`Slowest #1`–`#3`).
 - Notebook `[RHA] Claude's Default Testing Notebook`: simplified both tiles (real and mock) to list each
   minute where a JustGo_mobile OS averaged over 30 s, with only `Time start`, `avg_ms` and `OS`.
 
