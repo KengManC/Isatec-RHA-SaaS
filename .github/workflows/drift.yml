@@ -20,7 +20,7 @@ jobs:
       DT_PLATFORM_TOKEN: ${{ secrets.DT_PLATFORM_TOKEN }}
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Find tracked resources
         id: files
         run: |
