@@ -14,6 +14,10 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
 
 ## [Unreleased]
 
+### Changed
+- Notebook `[RHA] Claude's Default Testing Notebook`: simplified both tiles (real and mock) to list each
+  minute where a JustGo_mobile OS averaged over 30 s, with only `Time start`, `avg_ms` and `OS`.
+
 ### Fixed
 - Notebook `[RHA] Claude's Default Testing Notebook`: breach table returned nothing because view
   durations were divided by 1,000,000 even when already in ms; units are now detected, the default
