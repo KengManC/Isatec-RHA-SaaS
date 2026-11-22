@@ -23,6 +23,9 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
 - GitHub Actions: PR checks (validation, changelog check, `dtctl diff` comment), deploy on merge
   to `main`, nightly backup to the `backups` branch, daily drift check.
 - `CHANGELOG.md`, pull request template, `CODEOWNERS` and Dependabot configuration.
+- GitHub Actions: `auto-merge-claude.yml` approves and merges Claude Code PRs (author `KengManC`,
+  Claude commit trailers, all PR checks green, no `.github/`/`scripts/`/`.claude/` changes) and
+  dispatches the deploy; `deploy.yml` accepts a `before` input and merges its own stamp-IDs PR.
 
 ## [0.1.0] - 2026-11-22
 
