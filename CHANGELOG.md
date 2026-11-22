@@ -17,6 +17,9 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
 ### Added
 - Dashboard `[RHA] Junda Smells` (`dashboards/junda-smells/`): standard host (CPU, memory, disk,
   network, load) and service (requests, response time, failures) metrics.
+- Notebook `[RHA] Claude's Default Testing Notebook` (`notebooks/claude-default-testing/`): table of
+  JustGo_mobile 1-minute windows where avg view duration per OS exceeds 30 s, with the top 5
+  slowest `justgo`-tagged services in each window.
 - GitHub Actions: PR checks (validation, changelog check, `dtctl diff` comment), deploy on merge
   to `main`, nightly backup to the `backups` branch, daily drift check.
 - `CHANGELOG.md`, pull request template, `CODEOWNERS` and Dependabot configuration.

@@ -1,0 +1,60 @@
+{
+  "id": "09dd0760-ec54-4963-ae1a-e6d7bae5d225",
+  "name": "[RHA] Claude's Default Testing Notebook",
+  "type": "notebook",
+  "content": {
+    "version": "7",
+    "defaultTimeframe": {
+      "from": "now()-2h",
+      "to": "now()"
+    },
+    "defaultSegments": [],
+    "sections": [
+      {
+        "id": "b1f0c2a4-6d1e-4c8a-9a51-0f3e7c2d1a01",
+        "type": "markdown",
+        "markdown": "## JustGo_mobile slow views (> 30 s) and top 5 slowest JustGo services\nThe table below stays **empty until a breach happens**. A row appears only when the average view duration (`avg_ms`) for an `os.name` in a 1-minute window exceeds **30 s (30,000 ms)**. For each breach window it lists the 5 slowest services tagged `justgo` (by average response time in that same minute), along with the number of user actions in that window.\n\n- `duration` in `user.events` is stored in nanoseconds, so it is divided by 1,000,000 to get ms.\n- `dt.service.request.response_time` is in microseconds, so it is divided by 1,000.\n- Services are picked with the entity selector `tag(justgo)` (tag key `justgo`); change it if the tag is a key:value pair.\n- To change the threshold, edit `filter avg_ms > 30000`."
+      },
+      {
+        "id": "b1f0c2a4-6d1e-4c8a-9a51-0f3e7c2d1a02",
+        "type": "dql",
+        "title": "JustGo_mobile slow views (> 30 s) with top 5 slowest JustGo services",
+        "showTitle": true,
+        "drilldownPath": [],
+        "filterSegments": [],
+        "previousFilterSegments": [],
+        "showInput": true,
+        "state": {
+          "input": {
+            "timeframe": {
+              "from": "now()-2h",
+              "to": "now()"
+            },
+            "value": "fetch user.events\n| filter characteristics.has_view_summary == true\n| filter frontend.name == \"JustGo_mobile\"\n| summarize { avg_ms = avg(toDouble(duration)) / 1000000, useraction_count = count() },\n    by: { window_start = bin(timestamp, 1m), os.name }\n| filter avg_ms > 30000\n| fieldsAdd window_end = window_start + 1m\n| join [\n    timeseries rt = avg(dt.service.request.response_time), by: { dt.entity.service }, interval: 1m,\n      filter: in(dt.entity.service, classicEntitySelector(\"type(SERVICE),tag(justgo)\"))\n    | fieldsAdd service = entityName(dt.entity.service)\n    | fieldsAdd pts = iCollectArray(record(ts = timeframe[start] + interval * iIndex(), rt_ms = rt[] / 1000))\n    | expand pts\n    | fields ts = pts[ts], rt_ms = pts[rt_ms], service\n    | filter isNotNull(rt_ms)\n  ], kind: leftOuter, on: { left[window_start] == right[ts] }, fields: { service, rt_ms }\n| summarize { services = collectArray(record(rt_ms, service)) },\n    by: { window_start, window_end, os.name, avg_ms, useraction_count }\n| fieldsAdd top5 = arraySlice(arraySort(services, direction: \"descending\"), from: 0, to: 5)\n| expand top5\n| fields `Window start` = window_start, `Window end` = window_end, `OS` = os.name,\n    `Avg view duration (ms)` = round(avg_ms, decimals: 0), `User actions` = useraction_count,\n    `JustGo service` = top5[service], `Service avg response (ms)` = round(top5[rt_ms], decimals: 0)\n| sort `Window start` desc, `Service avg response (ms)` desc"
+          },
+          "visualization": "table",
+          "visualizationSettings": {
+            "autoSelectVisualization": false,
+            "table": {
+              "hideColumnsForLargeResults": false
+            },
+            "chartSettings": {}
+          },
+          "querySettings": {
+            "maxResultRecords": 1000,
+            "defaultScanLimitGbytes": 500,
+            "maxResultMegaBytes": 1,
+            "defaultSamplingRatio": 10,
+            "enableSampling": false
+          },
+          "davis": {
+            "includeLogs": true,
+            "davisVisualization": {
+              "isAvailable": true
+            }
+          }
+        }
+      }
+    ]
+  }
+}
