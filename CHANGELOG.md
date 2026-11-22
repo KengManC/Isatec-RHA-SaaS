@@ -15,6 +15,9 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
 ## [Unreleased]
 
 ### Fixed
+- Notebook `[RHA] Claude's Default Testing Notebook`: breach table returned nothing because view
+  durations were divided by 1,000,000 even when already in ms; units are now detected, the default
+  timeframe is 7 days, and services are matched to the breach even when Dynatrace widens the interval.
 - PR checks: `dt-diff` no longer fails when a resource has changes (`dtctl diff` exit code 1
   tripped `bash -e`), which also kept Claude PRs from auto-merging.
 
