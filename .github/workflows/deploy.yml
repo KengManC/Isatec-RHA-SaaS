@@ -1,6 +1,7 @@
 # Deploys to rha75589 when changes land on main.
 #  - documents: dtctl apply for changed dashboards/notebooks/workflows (snapshot taken first)
-#               new resources get their generated ID stamped back via an automatic PR
+#               new resources get their generated ID stamped back via an automatic PR,
+#               which this workflow merges itself (it only adds IDs)
 #  - apps:      npx dt-app deploy for changed apps/* (skipped until the OAuth client secrets exist)
 # Deleted files are NOT deleted in Dynatrace; that stays a manual, deliberate step.
 name: Deploy
@@ -10,6 +11,11 @@ on:
     branches: [main]
     paths: ["dashboards/**", "notebooks/**", "workflows/**", "apps/**"]
   workflow_dispatch:
+    inputs:
+      before:
+        description: "Deploy only changes after this commit (empty = treat everything as changed)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -33,9 +39,9 @@ jobs:
       - name: Find changed resources
         id: changed
         run: |
-          before="${{ github.event.before }}"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || ! git cat-file -e "$before" 2>/dev/null; then
-            before=$(git hash-object -t tree /dev/null)   # manual run: treat everything as changed
+          before="${{ github.event.before || inputs.before }}"
+          if [ -z "$before" ] || ! git cat-file -e "$before" 2>/dev/null; then
+            before=$(git hash-object -t tree /dev/null)   # manual run without 'before': treat everything as changed
           fi
           files=$(scripts/ci/changed-resources.sh "$before" HEAD | tr '\n' ' ')
           echo "files=$files" >> "$GITHUB_OUTPUT"
@@ -73,6 +79,9 @@ jobs:
           gh pr create --base main --head "$branch" --label skip-changelog \
             --title "chore: stamp Dynatrace IDs (run ${GITHUB_RUN_ID})" \
             --body "Resources created by deploy run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Merge so future deploys update them in place instead of creating duplicates."
+          # Only IDs written by this run: merge straight away. If branch protection refuses, it stays open for you.
+          gh pr merge "$branch" --squash --delete-branch \
+            || echo "::warning::Could not auto-merge $branch (branch protection?). Merge the stamp-IDs PR manually."
 
   apps:
     runs-on: ubuntu-latest
@@ -88,8 +97,8 @@ jobs:
       - name: Deploy changed apps
         run: |
           set -euo pipefail
-          before="${{ github.event.before }}"
-          git cat-file -e "$before" 2>/dev/null && [ "${{ github.event_name }}" != "workflow_dispatch" ] \
+          before="${{ github.event.before || inputs.before }}"
+          [ -n "$before" ] && git cat-file -e "$before" 2>/dev/null \
             || before=$(git hash-object -t tree /dev/null)
           apps=$(git diff --name-only "$before" HEAD -- apps | cut -d/ -f2 | sort -u)
           [ -z "$apps" ] && { echo "No app changes."; exit 0; }

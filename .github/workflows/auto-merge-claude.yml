@@ -1,0 +1,84 @@
+# Approves and merges pull requests made by Claude Code sessions once "PR checks" pass,
+# then starts the deploy for exactly what the PR changed.
+#
+# A PR qualifies only if ALL of these hold:
+#  - it comes from a branch in this repository (no forks)
+#  - its author is AUTO_MERGE_AUTHOR (Claude sessions open PRs as your own GitHub account)
+#  - every commit carries a Claude trailer ("Claude-Session:" or "Co-Authored-By: Claude")
+#  - every job in "PR checks" succeeded, on the PR's current head commit
+#  - it does not touch .github/, scripts/ or .claude/ (pipeline changes still need you)
+#
+# Merges made with the workflow token do not fire push-triggered workflows, so this
+# dispatches deploy.yml itself and hands it the pre-merge commit to diff against.
+name: Auto-merge Claude PRs
+
+on:
+  workflow_run:
+    workflows: ["PR checks"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+env:
+  AUTO_MERGE_AUTHOR: KengManC
+
+jobs:
+  merge:
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    concurrency:
+      group: auto-merge-${{ github.event.workflow_run.head_branch }}
+      cancel-in-progress: true
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - name: Check the PR qualifies
+        id: pr
+        run: |
+          set -euo pipefail
+          pr=$(gh pr list --state open --head "$HEAD_BRANCH" --base main \
+                 --json number,author,headRefOid,isCrossRepository --jq '.[0] // empty')
+          [ -z "$pr" ] && { echo "No open PR into main for $HEAD_BRANCH."; exit 0; }
+          num=$(jq -r .number <<<"$pr")
+          skip() { echo "PR #$num not auto-merged: $1"; echo "::notice::PR #$num not auto-merged: $1"; exit 0; }
+
+          [ "$(jq -r .isCrossRepository <<<"$pr")" = "false" ] || skip "comes from a fork"
+          [ "$(jq -r .author.login <<<"$pr")" = "$AUTO_MERGE_AUTHOR" ] || skip "author is not $AUTO_MERGE_AUTHOR"
+          [ "$(jq -r .headRefOid <<<"$pr")" = "$HEAD_SHA" ] || skip "new commits since checks ran"
+
+          non_claude=$(gh api "repos/$GH_REPO/pulls/$num/commits" --paginate \
+            --jq '.[] | select(.commit.message | test("(?m)^(Claude-Session: |Co-Authored-By: Claude)") | not) | .sha')
+          [ -z "$non_claude" ] || skip "has commits without a Claude trailer"
+
+          protected=$(gh api "repos/$GH_REPO/pulls/$num/files" --paginate --jq '.[].filename' \
+            | grep -E '^(\.github|scripts|\.claude)/' || true)
+          [ -z "$protected" ] || skip "touches pipeline/setup files (review and merge it yourself): $(echo $protected)"
+
+          echo "number=$num" >> "$GITHUB_OUTPUT"
+
+      - name: Approve and merge
+        if: steps.pr.outputs.number != ''
+        id: merge
+        env:
+          NUM: ${{ steps.pr.outputs.number }}
+        run: |
+          set -euo pipefail
+          gh pr review "$NUM" --approve --body "Auto-approved: Claude Code PR from $AUTO_MERGE_AUTHOR, all PR checks passed."
+          gh pr merge "$NUM" --squash --delete-branch --match-head-commit "$HEAD_SHA"
+          merge_sha=$(gh pr view "$NUM" --json mergeCommit --jq .mergeCommit.oid)
+          before=$(gh api "repos/$GH_REPO/commits/$merge_sha" --jq '.parents[0].sha')
+          echo "before=$before" >> "$GITHUB_OUTPUT"
+          echo "Merged PR #$NUM as $merge_sha" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Deploy what the PR changed
+        if: steps.merge.outputs.before != ''
+        run: gh workflow run deploy.yml --ref main -f before="${{ steps.merge.outputs.before }}"
