@@ -28,6 +28,9 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
   tripped `bash -e`), which also kept Claude PRs from auto-merging.
 
 ### Added
+- Notebook `[RHA] Claude's Default Testing Notebook`: tile listing the 3 slowest `JustGo`-tagged services
+  (avg response time and request count) in each 5-minute window where JustGo_mobile avg view duration
+  exceeded 30 s; the breach tile now uses a 5-minute interval.
 - Notebook `[RHA] Claude's Default Testing Notebook`: mock-data preview tile showing what the
   JustGo slow-view breach table looks like with breaches.
 - Dashboard `[RHA] Junda Smells` (`dashboards/junda-smells/`): standard host (CPU, memory, disk,
