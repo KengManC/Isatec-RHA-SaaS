@@ -13,12 +13,12 @@
       {
         "id": "b1f0c2a4-6d1e-4c8a-9a51-0f3e7c2d1a01",
         "type": "markdown",
-        "markdown": "## JustGo_mobile: minutes where avg view duration exceeded 30 s\nBuilt on the same `makeTimeseries { avg_ms = avg(toDouble(duration)) }, by: { os.name }, interval: 1m` as the JustGo_mobile chart, so the numbers match it. One row for every minute where an OS's average went over **30 s**, newest first. Columns: `Time start` (start of the minute), `avg_ms` (in milliseconds), `OS`. Default timeframe: last 24 hours.\n\n- `duration` is stored in nanoseconds, so the threshold is `30000000000` (30 s) and `avg_ms` is divided by 1,000,000 for display.\n- Beyond about 24 hours Dynatrace widens the 1-minute interval (10 min at 7 days), so each row then averages a longer window."
+        "markdown": "## JustGo_mobile: 5-minute windows where avg view duration exceeded 30 s\nBuilt on the same `makeTimeseries { avg_ms = avg(toDouble(duration)) }, by: { os.name }` as the JustGo_mobile chart, at a **5-minute interval**. The first tile lists every window where an OS's average went over **30 s**, newest first (`Time start`, `avg_ms` in ms, `OS`). The second tile takes the same windows and shows the **3 slowest services tagged `JustGo`** in each, with their average response time and request count for those 5 minutes. Default timeframe: last 24 hours.\n\n- `duration` is stored in nanoseconds, so the threshold is `30000000000` (30 s) and `avg_ms` is divided by 1,000,000 for display.\n- Service response time (`dt.service.request.response_time`, microseconds) is shown in ms; request count is `dt.service.request.count` summed over the window.\n- Beyond a few days Dynatrace widens the 5-minute interval (both tiles widen together), so each row then covers a longer window."
       },
       {
         "id": "b1f0c2a4-6d1e-4c8a-9a51-0f3e7c2d1a02",
         "type": "dql",
-        "title": "JustGo_mobile minutes with avg view duration > 30 s",
+        "title": "JustGo_mobile 5-minute windows with avg view duration > 30 s",
         "showTitle": true,
         "drilldownPath": [],
         "filterSegments": [],
@@ -30,7 +30,47 @@
               "from": "now()-24h",
               "to": "now()"
             },
-            "value": "fetch user.events\n| filter characteristics.has_view_summary == true\n| filter frontend.name == \"JustGo_mobile\"\n| makeTimeseries { avg_ms = avg(toDouble(duration)) }, by: { os.name }, interval: 1m\n// one row per OS per minute\n| fieldsAdd pts = iCollectArray(record(time_start = timeframe[start] + interval * iIndex(), v = avg_ms[]))\n| expand pts\n// duration is in nanoseconds: 30 s = 30,000,000,000 ns\n| filter pts[v] > 30000000000\n| fields `Time start` = pts[time_start], avg_ms = round(pts[v] / 1000000, decimals: 0), OS = os.name\n| sort `Time start` desc"
+            "value": "fetch user.events\n| filter characteristics.has_view_summary == true\n| filter frontend.name == \"JustGo_mobile\"\n| makeTimeseries { avg_ms = avg(toDouble(duration)) }, by: { os.name }, interval: 5m\n// one row per OS per 5-minute window\n| fieldsAdd pts = iCollectArray(record(time_start = timeframe[start] + interval * iIndex(), v = avg_ms[]))\n| expand pts\n// duration is in nanoseconds: 30 s = 30,000,000,000 ns\n| filter pts[v] > 30000000000\n| fields `Time start` = pts[time_start], avg_ms = round(pts[v] / 1000000, decimals: 0), OS = os.name\n| sort `Time start` desc"
+          },
+          "visualization": "table",
+          "visualizationSettings": {
+            "autoSelectVisualization": false,
+            "table": {
+              "hideColumnsForLargeResults": false
+            },
+            "chartSettings": {}
+          },
+          "querySettings": {
+            "maxResultRecords": 1000,
+            "defaultScanLimitGbytes": 500,
+            "maxResultMegaBytes": 1,
+            "defaultSamplingRatio": 10,
+            "enableSampling": false
+          },
+          "davis": {
+            "includeLogs": true,
+            "davisVisualization": {
+              "isAvailable": true
+            }
+          }
+        }
+      },
+      {
+        "id": "b1f0c2a4-6d1e-4c8a-9a51-0f3e7c2d1a05",
+        "type": "dql",
+        "title": "Top 3 slowest JustGo services in each > 30 s window",
+        "showTitle": true,
+        "drilldownPath": [],
+        "filterSegments": [],
+        "previousFilterSegments": [],
+        "showInput": true,
+        "state": {
+          "input": {
+            "timeframe": {
+              "from": "now()-24h",
+              "to": "now()"
+            },
+            "value": "fetch user.events\n| filter characteristics.has_view_summary == true\n| filter frontend.name == \"JustGo_mobile\"\n| makeTimeseries { avg_ms = avg(toDouble(duration)) }, by: { os.name }, interval: 5m\n// one row per OS per 5-minute window; keep windows over 30 s (duration is in ns)\n| fieldsAdd pts = iCollectArray(record(time_start = timeframe[start] + interval * iIndex(), v = avg_ms[]))\n| expand pts\n| filter pts[v] > 30000000000\n| fields time_start = pts[time_start], avg_ms = pts[v] / 1000000, os.name\n// response time and request count of every JustGo-tagged service, per 5-minute window\n| join [\n    timeseries { rt = avg(dt.service.request.response_time), req = sum(dt.service.request.count) },\n      by: { dt.entity.service },\n      filter: { in(dt.entity.service, classicEntitySelector(\"type(SERVICE),tag(JustGo)\")) },\n      interval: 5m\n    | fieldsAdd service = entityName(dt.entity.service)\n    | fieldsAdd pts = iCollectArray(record(ts = timeframe[start] + interval * iIndex(), rt_ms = rt[] / 1000, req = req[]))\n    | expand pts\n    | fields ts = pts[ts], rt_ms = pts[rt_ms], req = pts[req], service\n    | filter isNotNull(rt_ms)\n  ], kind: leftOuter, on: { left[time_start] == right[ts] }, fields: { service, rt_ms, req }\n// 3 slowest services per breach window\n| summarize { services = collectArray(record(rt_ms, service, req)) }, by: { time_start, os.name, avg_ms }\n| fieldsAdd top3 = arraySlice(arraySort(services, direction: \"descending\"), from: 0, to: 3)\n| expand top3\n| fields `Time start` = time_start, `Time end` = time_start + 5m, OS = os.name,\n    avg_ms = round(avg_ms, decimals: 0),\n    `JustGo service` = top3[service], `Avg response time (ms)` = round(top3[rt_ms], decimals: 1),\n    `Request count` = top3[req]\n| sort `Time start` desc, `Avg response time (ms)` desc"
           },
           "visualization": "table",
           "visualizationSettings": {
