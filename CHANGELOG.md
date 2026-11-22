@@ -15,10 +15,15 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
 ## [Unreleased]
 
 ### Fixed
+- Notebook `[RHA] Claude's Default Testing Notebook`: breach table returned nothing because view
+  durations were divided by 1,000,000 even when already in ms; units are now detected, the default
+  timeframe is 7 days, and services are matched to the breach even when Dynatrace widens the interval.
 - PR checks: `dt-diff` no longer fails when a resource has changes (`dtctl diff` exit code 1
   tripped `bash -e`), which also kept Claude PRs from auto-merging.
 
 ### Added
+- Notebook `[RHA] Claude's Default Testing Notebook`: mock-data preview tile showing what the
+  JustGo slow-view breach table looks like with breaches.
 - Dashboard `[RHA] Junda Smells` (`dashboards/junda-smells/`): standard host (CPU, memory, disk,
   network, load) and service (requests, response time, failures) metrics.
 - Notebook `[RHA] Claude's Default Testing Notebook` (`notebooks/claude-default-testing/`): table of

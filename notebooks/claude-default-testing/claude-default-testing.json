@@ -5,7 +5,7 @@
   "content": {
     "version": "7",
     "defaultTimeframe": {
-      "from": "now()-2h",
+      "from": "now()-7d",
       "to": "now()"
     },
     "defaultSegments": [],
@@ -13,7 +13,7 @@
       {
         "id": "b1f0c2a4-6d1e-4c8a-9a51-0f3e7c2d1a01",
         "type": "markdown",
-        "markdown": "## JustGo_mobile slow views (> 30 s) and top 5 slowest JustGo services\nThe table below stays **empty until a breach happens**. A row appears only when the average view duration (`avg_ms`) for an `os.name` in a 1-minute window exceeds **30 s (30,000 ms)**. For each breach window it lists the 5 slowest services tagged `justgo` (by average response time in that same minute), along with the number of user actions in that window.\n\n- `duration` in `user.events` is stored in nanoseconds, so it is divided by 1,000,000 to get ms.\n- `dt.service.request.response_time` is in microseconds, so it is divided by 1,000.\n- Services are picked with the entity selector `tag(justgo)` (tag key `justgo`); change it if the tag is a key:value pair.\n- To change the threshold, edit `filter avg_ms > 30000`."
+        "markdown": "## JustGo_mobile slow views (> 30 s) and top 5 slowest JustGo services\nA row appears for **every 1-minute window in the selected timeframe** (default: last 7 days) where the average view duration (`avg_ms`) of an `os.name` exceeds **30 s (30,000 ms)**. `Window start` / `Window end` show when it happened. Each breach lists the 5 slowest services tagged `justgo` at that time, plus the number of user actions in the window. Widen the timeframe picker to look further back; the table is empty only if no window breached.\n\n- `duration` is converted to ms automatically: a RUM duration type (nanoseconds) is divided by 1,000,000, a plain number is taken as ms.\n- Service response times come from `dt.service.request.response_time`. Over long timeframes Dynatrace widens its 1-minute resolution (10 min at 7 days, 30 min at 30 days), so service figures are for the bucket containing the breach minute.\n- Services are picked with the entity selector `tag(justgo)` (tag key `justgo`); change it if the tag is a key:value pair.\n- To change the threshold, edit `filter avg_ms > 30000`."
       },
       {
         "id": "b1f0c2a4-6d1e-4c8a-9a51-0f3e7c2d1a02",
@@ -27,10 +27,55 @@
         "state": {
           "input": {
             "timeframe": {
+              "from": "now()-7d",
+              "to": "now()"
+            },
+            "value": "fetch user.events\n| filter characteristics.has_view_summary == true\n| filter frontend.name == \"JustGo_mobile\"\n// duration is a duration type (nanoseconds) in RUM; if it arrives as a plain number it is already ms\n| fieldsAdd dur_ms = if(type(duration) == \"duration\", toDouble(duration) / 1000000, else: toDouble(duration))\n| summarize { avg_ms = avg(dur_ms), useraction_count = count() },\n    by: { window_start = bin(timestamp, 1m), os.name }\n| filter avg_ms > 30000\n| fieldsAdd window_end = window_start + 1m, k = 1\n// timeseries widens its 1m interval on long timeframes (10m at 7d, 30m at 30d): read the interval it used\n| join [\n    timeseries x = sum(dt.service.request.count), interval: 1m\n    | fields k = 1, svc_interval = interval\n  ], on: { k }, fields: { svc_interval }\n| fieldsAdd svc_bucket = bin(window_start, svc_interval)\n// response time of every justgo-tagged service, one row per service per bucket\n| join [\n    timeseries rt = avg(dt.service.request.response_time), by: { dt.entity.service }, interval: 1m,\n      filter: in(dt.entity.service, classicEntitySelector(\"type(SERVICE),tag(justgo)\"))\n    | fieldsAdd service = entityName(dt.entity.service)\n    | fieldsAdd pts = iCollectArray(record(ts = timeframe[start] + interval * iIndex(), rt_ms = rt[] / 1000))\n    | expand pts\n    | fields ts = pts[ts], rt_ms = pts[rt_ms], service\n    | filter isNotNull(rt_ms)\n  ], kind: leftOuter, on: { left[svc_bucket] == right[ts] }, fields: { service, rt_ms }\n| summarize { services = collectArray(record(rt_ms, service)) },\n    by: { window_start, window_end, os.name, avg_ms, useraction_count }\n| fieldsAdd top5 = arraySlice(arraySort(services, direction: \"descending\"), from: 0, to: 5)\n| expand top5\n| fields `Window start` = window_start, `Window end` = window_end, `OS` = os.name,\n    `Avg view duration (ms)` = round(avg_ms, decimals: 0), `User actions` = useraction_count,\n    `JustGo service` = top5[service], `Service avg response (ms)` = round(top5[rt_ms], decimals: 0)\n| sort `Window start` desc, `Service avg response (ms)` desc"
+          },
+          "visualization": "table",
+          "visualizationSettings": {
+            "autoSelectVisualization": false,
+            "table": {
+              "hideColumnsForLargeResults": false
+            },
+            "chartSettings": {}
+          },
+          "querySettings": {
+            "maxResultRecords": 1000,
+            "defaultScanLimitGbytes": 500,
+            "maxResultMegaBytes": 1,
+            "defaultSamplingRatio": 10,
+            "enableSampling": false
+          },
+          "davis": {
+            "includeLogs": true,
+            "davisVisualization": {
+              "isAvailable": true
+            }
+          }
+        }
+      },
+      {
+        "id": "b1f0c2a4-6d1e-4c8a-9a51-0f3e7c2d1a03",
+        "type": "markdown",
+        "markdown": "## Preview with mock data\nThe tile below runs **the same breach logic on generated data**, so you can see what the table looks like when breaches happen. It makes up JustGo_mobile view events for Android, iOS and iPadOS over the last hour (3 per minute). Android goes over 30 s for two minutes and iOS for one; iPadOS never does. It also makes up response times for 8 `justgo` services, some of which spike during those minutes. Times move with the current time, so it always shows the last hour. Nothing here reads real data."
+      },
+      {
+        "id": "b1f0c2a4-6d1e-4c8a-9a51-0f3e7c2d1a04",
+        "type": "dql",
+        "title": "[MOCK DATA] JustGo_mobile slow views (> 30 s) with top 5 slowest JustGo services",
+        "showTitle": true,
+        "drilldownPath": [],
+        "filterSegments": [],
+        "previousFilterSegments": [],
+        "showInput": true,
+        "state": {
+          "input": {
+            "timeframe": {
               "from": "now()-2h",
               "to": "now()"
             },
-            "value": "fetch user.events\n| filter characteristics.has_view_summary == true\n| filter frontend.name == \"JustGo_mobile\"\n| summarize { avg_ms = avg(toDouble(duration)) / 1000000, useraction_count = count() },\n    by: { window_start = bin(timestamp, 1m), os.name }\n| filter avg_ms > 30000\n| fieldsAdd window_end = window_start + 1m\n| join [\n    timeseries rt = avg(dt.service.request.response_time), by: { dt.entity.service }, interval: 1m,\n      filter: in(dt.entity.service, classicEntitySelector(\"type(SERVICE),tag(justgo)\"))\n    | fieldsAdd service = entityName(dt.entity.service)\n    | fieldsAdd pts = iCollectArray(record(ts = timeframe[start] + interval * iIndex(), rt_ms = rt[] / 1000))\n    | expand pts\n    | fields ts = pts[ts], rt_ms = pts[rt_ms], service\n    | filter isNotNull(rt_ms)\n  ], kind: leftOuter, on: { left[window_start] == right[ts] }, fields: { service, rt_ms }\n| summarize { services = collectArray(record(rt_ms, service)) },\n    by: { window_start, window_end, os.name, avg_ms, useraction_count }\n| fieldsAdd top5 = arraySlice(arraySort(services, direction: \"descending\"), from: 0, to: 5)\n| expand top5\n| fields `Window start` = window_start, `Window end` = window_end, `OS` = os.name,\n    `Avg view duration (ms)` = round(avg_ms, decimals: 0), `User actions` = useraction_count,\n    `JustGo service` = top5[service], `Service avg response (ms)` = round(top5[rt_ms], decimals: 0)\n| sort `Window start` desc, `Service avg response (ms)` desc"
+            "value": "// MOCK DATA: same logic as the real tile, with generated events instead of fetch user.events.\n// 3 OSes x 60 minutes x 3 view events; Android breaches at minutes 12-13, iOS at minute 38.\ndata record(os.name = \"Android\"), record(os.name = \"iOS\"), record(os.name = \"iPadOS\")\n| fieldsAdd m = array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59), k = array(0, 1, 2)\n| expand m\n| expand k\n| fieldsAdd timestamp = bin(now(), 1m) - 60m + m * 1m + k * 15s\n| fieldsAdd duration_ms = if(os.name == \"Android\" and (m == 12 or m == 13), 42000 + k * 6000 + m * 500,\n    else: if(os.name == \"iOS\" and m == 38, 33000 + k * 3000,\n    else: 4000 + ((m * 7 + k * 3) % 9) * 1500))\n| fieldsAdd duration = duration_ms * 1ms\n// ---- from here on identical to the real tile ----\n| fieldsAdd dur_ms = if(type(duration) == \"duration\", toDouble(duration) / 1000000, else: toDouble(duration))\n| summarize { avg_ms = avg(dur_ms), useraction_count = count() },\n    by: { window_start = bin(timestamp, 1m), os.name }\n| filter avg_ms > 30000\n| fieldsAdd window_end = window_start + 1m\n// MOCK service response times for 8 justgo-tagged services, one row per service per minute\n| join [\n    data record(service = \"justgo-api-gateway\", base = 180, spike = 9.0),\n         record(service = \"justgo-auth\", base = 90, spike = 4.0),\n         record(service = \"justgo-booking\", base = 240, spike = 25.0),\n         record(service = \"justgo-payments\", base = 310, spike = 18.0),\n         record(service = \"justgo-membership\", base = 150, spike = 1.5),\n         record(service = \"justgo-notifications\", base = 60, spike = 1.5),\n         record(service = \"justgo-search\", base = 200, spike = 6.0),\n         record(service = \"justgo-media\", base = 120, spike = 2.0)\n    | fieldsAdd m = array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59)\n    | expand m\n    | fieldsAdd ts = bin(now(), 1m) - 60m + m * 1m\n    | fieldsAdd rt_ms = base * (1 + ((m * 13 + stringLength(service)) % 7) / 10.0)\n        * if(m == 12 or m == 13 or m == 38, spike, else: 1.0)\n    | fields ts, service, rt_ms\n  ], kind: leftOuter, on: { left[window_start] == right[ts] }, fields: { service, rt_ms }\n| summarize { services = collectArray(record(rt_ms, service)) },\n    by: { window_start, window_end, os.name, avg_ms, useraction_count }\n| fieldsAdd top5 = arraySlice(arraySort(services, direction: \"descending\"), from: 0, to: 5)\n| expand top5\n| fields `Window start` = window_start, `Window end` = window_end, `OS` = os.name,\n    `Avg view duration (ms)` = round(avg_ms, decimals: 0), `User actions` = useraction_count,\n    `JustGo service` = top5[service], `Service avg response (ms)` = round(top5[rt_ms], decimals: 0)\n| sort `Window start` desc, `Service avg response (ms)` desc"
           },
           "visualization": "table",
           "visualizationSettings": {
