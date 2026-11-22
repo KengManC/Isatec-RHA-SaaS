@@ -19,6 +19,8 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
   minute where a JustGo_mobile OS averaged over 30 s, with only `Time start`, `avg_ms` and `OS`.
 
 ### Fixed
+- Notebook `[RHA] Claude's Default Testing Notebook`: breach tile now uses the chart's own
+  `makeTimeseries` average and a nanosecond threshold, so minutes over 30 s show up; default timeframe 24 h.
 - Notebook `[RHA] Claude's Default Testing Notebook`: breach table returned nothing because view
   durations were divided by 1,000,000 even when already in ms; units are now detected, the default
   timeframe is 7 days, and services are matched to the breach even when Dynatrace widens the interval.
