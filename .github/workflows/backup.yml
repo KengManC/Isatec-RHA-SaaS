@@ -22,7 +22,7 @@ jobs:
       DT_ENVIRONMENT: ${{ secrets.DT_ENVIRONMENT }}
       DT_PLATFORM_TOKEN: ${{ secrets.DT_PLATFORM_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Set up dtctl
         run: scripts/ci/dtctl-setup.sh
       - name: Export [RHA] resources
