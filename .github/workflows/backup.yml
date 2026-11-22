@@ -41,7 +41,7 @@ jobs:
           export_type "dashboards --name [RHA]" dashboard dashboards
           export_type "notebooks --name [RHA]"  notebook  notebooks
           export_type "workflows --filter [RHA]" workflow workflows
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: rha75589-backup-${{ github.run_id }}
           path: ${{ runner.temp }}/snapshot
