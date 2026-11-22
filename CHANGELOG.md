@@ -14,6 +14,10 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
 
 ## [Unreleased]
 
+### Fixed
+- PR checks: `dt-diff` no longer fails when a resource has changes (`dtctl diff` exit code 1
+  tripped `bash -e`), which also kept Claude PRs from auto-merging.
+
 ### Added
 - Dashboard `[RHA] Junda Smells` (`dashboards/junda-smells/`): standard host (CPU, memory, disk,
   network, load) and service (requests, response time, failures) metrics.

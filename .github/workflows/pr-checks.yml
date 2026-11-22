@@ -88,7 +88,7 @@ jobs:
               printf '### `%s`\n**New resource**: will be created on merge (ID gets stamped back via a follow-up PR).\n\n' "$f" >> "$report"
               continue
             fi
-            out=$(dtctl diff -f "$f" --no-agent 2>&1); rc=$?
+            rc=0; out=$(dtctl diff -f "$f" --no-agent 2>&1) || rc=$?   # exit 1 = has changes; must not trip bash -e
             case $rc in
               0) printf '### `%s`\nNo changes vs. the live tenant.\n\n' "$f" >> "$report" ;;
               1) printf '### `%s`\n<details><summary>Changes</summary>\n\n```diff\n%s\n```\n</details>\n\n' "$f" "${out:0:20000}" >> "$report" ;;
