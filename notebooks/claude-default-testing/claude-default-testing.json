@@ -5,7 +5,7 @@
   "content": {
     "version": "7",
     "defaultTimeframe": {
-      "from": "now()-7d",
+      "from": "now()-24h",
       "to": "now()"
     },
     "defaultSegments": [],
@@ -13,7 +13,7 @@
       {
         "id": "b1f0c2a4-6d1e-4c8a-9a51-0f3e7c2d1a01",
         "type": "markdown",
-        "markdown": "## JustGo_mobile: minutes where avg view duration exceeded 30 s\nOne row for **every 1-minute window in the selected timeframe** (default: last 7 days) where the average view duration (`avg_ms`) of an OS went over **30 s (30,000 ms)**. Columns: `Time start` (start of the minute), `avg_ms`, `OS`. Widen the timeframe picker to look further back; an empty table means no minute breached.\n\n- `duration` is converted to ms automatically (duration type in ns \u00f7 1,000,000; a plain number is taken as ms).\n- To change the threshold, edit `filter avg_ms > 30000`."
+        "markdown": "## JustGo_mobile: minutes where avg view duration exceeded 30 s\nBuilt on the same `makeTimeseries { avg_ms = avg(toDouble(duration)) }, by: { os.name }, interval: 1m` as the JustGo_mobile chart, so the numbers match it. One row for every minute where an OS's average went over **30 s**, newest first. Columns: `Time start` (start of the minute), `avg_ms` (in milliseconds), `OS`. Default timeframe: last 24 hours.\n\n- `duration` is stored in nanoseconds, so the threshold is `30000000000` (30 s) and `avg_ms` is divided by 1,000,000 for display.\n- Beyond about 24 hours Dynatrace widens the 1-minute interval (10 min at 7 days), so each row then averages a longer window."
       },
       {
         "id": "b1f0c2a4-6d1e-4c8a-9a51-0f3e7c2d1a02",
@@ -27,10 +27,10 @@
         "state": {
           "input": {
             "timeframe": {
-              "from": "now()-7d",
+              "from": "now()-24h",
               "to": "now()"
             },
-            "value": "fetch user.events\n| filter characteristics.has_view_summary == true\n| filter frontend.name == \"JustGo_mobile\"\n// duration is a duration type (ns) in RUM -> ms; a plain number is taken as ms already\n| fieldsAdd dur_ms = if(type(duration) == \"duration\", toDouble(duration) / 1000000, else: toDouble(duration))\n| summarize avg_ms = avg(dur_ms), by: { time_start = bin(timestamp, 1m), os.name }\n| filter avg_ms > 30000\n| fields `Time start` = time_start, avg_ms = round(avg_ms, decimals: 0), OS = os.name\n| sort `Time start` desc"
+            "value": "fetch user.events\n| filter characteristics.has_view_summary == true\n| filter frontend.name == \"JustGo_mobile\"\n| makeTimeseries { avg_ms = avg(toDouble(duration)) }, by: { os.name }, interval: 1m\n// one row per OS per minute\n| fieldsAdd pts = iCollectArray(record(time_start = timeframe[start] + interval * iIndex(), v = avg_ms[]))\n| expand pts\n// duration is in nanoseconds: 30 s = 30,000,000,000 ns\n| filter pts[v] > 30000000000\n| fields `Time start` = pts[time_start], avg_ms = round(pts[v] / 1000000, decimals: 0), OS = os.name\n| sort `Time start` desc"
           },
           "visualization": "table",
           "visualizationSettings": {
