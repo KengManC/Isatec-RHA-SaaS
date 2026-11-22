@@ -22,6 +22,8 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
   tripped `bash -e`), which also kept Claude PRs from auto-merging.
 
 ### Added
+- Notebook `[RHA] Claude's Default Testing Notebook`: mock-data preview tile showing what the
+  JustGo slow-view breach table looks like with breaches.
 - Dashboard `[RHA] Junda Smells` (`dashboards/junda-smells/`): standard host (CPU, memory, disk,
   network, load) and service (requests, response time, failures) metrics.
 - Notebook `[RHA] Claude's Default Testing Notebook` (`notebooks/claude-default-testing/`): table of
