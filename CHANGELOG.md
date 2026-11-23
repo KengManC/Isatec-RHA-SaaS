@@ -14,6 +14,11 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
 
 ## [Unreleased]
 
+### Added
+- Dashboard `[RHA] Sean is Happy`: blue-themed overview with coloured single-value KPIs (response time,
+  P90, requests, failure rate, CPU, memory, disk, open problems), service and host charts, a OneAgent
+  configuration table and a threshold legend, with a "Sean is Happy" banner image at the top.
+
 ### Changed
 - Notebook `[RHA] Claude's Default Testing Notebook`: both JustGo breach tiles show `User events`, the number
   of view events each `avg_ms` was calculated from.
