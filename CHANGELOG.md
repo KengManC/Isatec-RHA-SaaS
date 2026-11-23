@@ -34,6 +34,9 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
   tripped `bash -e`), which also kept Claude PRs from auto-merging.
 
 ### Added
+- Notebook `[RHA] Claude's Default Testing Notebook`: tile classifying JustGo_mobile failure windows as
+  likely client connectivity vs application failure (RUM network/error signals + JustGo backend health),
+  with proposed classification rules and false-positive handling.
 - Notebook `[RHA] Claude's Default Testing Notebook`: tile listing the 3 slowest `JustGo`-tagged services
   (avg response time and request count) in each 5-minute window where JustGo_mobile avg view duration
   exceeded 30 s; the breach tile now uses a 5-minute interval.
