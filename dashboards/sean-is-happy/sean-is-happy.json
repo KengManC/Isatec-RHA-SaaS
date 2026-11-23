@@ -1,0 +1,1209 @@
+{
+  "name": "[RHA] Sean is Happy",
+  "type": "dashboard",
+  "content": {
+    "version": 15,
+    "variables": [],
+    "tiles": {
+      "0": {
+        "type": "markdown",
+        "content": "## 🖼️ Sean is Happy — banner image\n_Image placeholder: the banner image goes here once it is hosted at an https URL._"
+      },
+      "1": {
+        "type": "markdown",
+        "content": "# 💙 Sean is Happy\nService response time, infrastructure health and monitoring configuration for **rha75589**. Tiles turn **blue** when healthy, **amber/red** when a threshold is crossed. Source: `dashboards/sean-is-happy/` in the Isatec-RHA-SaaS repo."
+      },
+      "2": {
+        "type": "markdown",
+        "content": "## ⚡ Service performance"
+      },
+      "3": {
+        "type": "data",
+        "title": "Avg response time",
+        "query": "timeseries rt = avg(dt.service.request.response_time)\n| fieldsAdd rt = rt[] / 1000\n| fieldsAdd `Avg response time` = arrayAvg(rt)",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "singleValue": {
+            "labelMode": "none",
+            "label": "Avg response time",
+            "recordField": "Avg response time",
+            "colorThresholdTarget": "background",
+            "trend": {
+              "isVisible": true
+            },
+            "sparklineSettings": {
+              "record": "rt",
+              "variant": "area"
+            },
+            "isIconVisible": true,
+            "prefixIcon": "ResponseTimeIcon"
+          },
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "custom-color",
+                "comparator": "<",
+                "customColor": "#134FC9",
+                "field": "Avg response time",
+                "type": "number",
+                "value": 500
+              },
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": "#C4233B",
+                "field": "Avg response time",
+                "type": "number",
+                "value": 500
+              }
+            ]
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "Avg response time",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 1,
+              "suffix": " ms",
+              "delimiter": true
+            }
+          ]
+        },
+        "querySettings": {
+          "defaultSamplingRatio": 10,
+          "defaultScanLimitGbytes": 500,
+          "enableSampling": false,
+          "maxResultMegaBytes": 1,
+          "maxResultRecords": 1000
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        }
+      },
+      "4": {
+        "type": "data",
+        "title": "P90 response time",
+        "query": "timeseries p90 = percentile(dt.service.request.response_time, 90)\n| fieldsAdd p90 = p90[] / 1000\n| fieldsAdd `P90 response time` = arrayAvg(p90)",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "singleValue": {
+            "labelMode": "none",
+            "label": "P90 response time",
+            "recordField": "P90 response time",
+            "colorThresholdTarget": "background",
+            "trend": {
+              "isVisible": true
+            },
+            "sparklineSettings": {
+              "record": "p90",
+              "variant": "area"
+            }
+          },
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "custom-color",
+                "comparator": "<",
+                "customColor": "#0B2E59",
+                "field": "P90 response time",
+                "type": "number",
+                "value": 1000
+              },
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": "#C4233B",
+                "field": "P90 response time",
+                "type": "number",
+                "value": 1000
+              }
+            ]
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "P90 response time",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 1,
+              "suffix": " ms",
+              "delimiter": true
+            }
+          ]
+        },
+        "querySettings": {
+          "defaultSamplingRatio": 10,
+          "defaultScanLimitGbytes": 500,
+          "enableSampling": false,
+          "maxResultMegaBytes": 1,
+          "maxResultRecords": 1000
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        }
+      },
+      "5": {
+        "type": "data",
+        "title": "Service requests",
+        "query": "timeseries req = sum(dt.service.request.count)\n| fieldsAdd Requests = arraySum(req)",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "singleValue": {
+            "labelMode": "none",
+            "label": "Requests",
+            "recordField": "Requests",
+            "colorThresholdTarget": "background",
+            "trend": {
+              "isVisible": true
+            },
+            "sparklineSettings": {
+              "record": "req",
+              "variant": "area"
+            }
+          },
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": "#2A6FDB",
+                "field": "Requests",
+                "type": "number",
+                "value": 0
+              }
+            ]
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "Requests",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 0,
+              "suffix": "",
+              "delimiter": true
+            }
+          ]
+        },
+        "querySettings": {
+          "defaultSamplingRatio": 10,
+          "defaultScanLimitGbytes": 500,
+          "enableSampling": false,
+          "maxResultMegaBytes": 1,
+          "maxResultRecords": 1000
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        }
+      },
+      "6": {
+        "type": "data",
+        "title": "Failure rate",
+        "query": "timeseries { req = sum(dt.service.request.count), fail = sum(dt.service.request.failure_count) }\n| fieldsAdd fr = 100 * fail[] / req[]\n| fieldsAdd `Failure rate` = 100 * arraySum(fail) / arraySum(req)",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "singleValue": {
+            "labelMode": "none",
+            "label": "Failure rate",
+            "recordField": "Failure rate",
+            "colorThresholdTarget": "background",
+            "trend": {
+              "isVisible": true
+            },
+            "sparklineSettings": {
+              "record": "fr",
+              "variant": "area"
+            }
+          },
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "custom-color",
+                "comparator": "<",
+                "customColor": "#1B7FA6",
+                "field": "Failure rate",
+                "type": "number",
+                "value": 1
+              },
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": "#C4233B",
+                "field": "Failure rate",
+                "type": "number",
+                "value": 1
+              }
+            ]
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "Failure rate",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": " %",
+              "delimiter": true
+            }
+          ]
+        },
+        "querySettings": {
+          "defaultSamplingRatio": 10,
+          "defaultScanLimitGbytes": 500,
+          "enableSampling": false,
+          "maxResultMegaBytes": 1,
+          "maxResultRecords": 1000
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        }
+      },
+      "7": {
+        "type": "data",
+        "title": "Services monitored",
+        "query": "fetch dt.entity.service\n| summarize Services = count()",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "singleValue": {
+            "labelMode": "none",
+            "label": "Services",
+            "recordField": "Services",
+            "colorThresholdTarget": "background",
+            "trend": {
+              "isVisible": false
+            },
+            "isIconVisible": true,
+            "prefixIcon": "ServicesIcon"
+          },
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": "#2F5D8A",
+                "field": "Services",
+                "type": "number",
+                "value": 0
+              }
+            ]
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "Services",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 0,
+              "suffix": "",
+              "delimiter": true
+            }
+          ]
+        },
+        "querySettings": {
+          "defaultSamplingRatio": 10,
+          "defaultScanLimitGbytes": 500,
+          "enableSampling": false,
+          "maxResultMegaBytes": 1,
+          "maxResultRecords": 1000
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        }
+      },
+      "8": {
+        "type": "markdown",
+        "content": "## 🖥️ Infrastructure health"
+      },
+      "9": {
+        "type": "data",
+        "title": "Hosts monitored",
+        "query": "fetch dt.entity.host\n| summarize Hosts = count()",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "singleValue": {
+            "labelMode": "none",
+            "label": "Hosts",
+            "recordField": "Hosts",
+            "colorThresholdTarget": "background",
+            "trend": {
+              "isVisible": false
+            },
+            "isIconVisible": true,
+            "prefixIcon": "HostsIcon"
+          },
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": "#2F5D8A",
+                "field": "Hosts",
+                "type": "number",
+                "value": 0
+              }
+            ]
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "Hosts",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 0,
+              "suffix": "",
+              "delimiter": true
+            }
+          ]
+        },
+        "querySettings": {
+          "defaultSamplingRatio": 10,
+          "defaultScanLimitGbytes": 500,
+          "enableSampling": false,
+          "maxResultMegaBytes": 1,
+          "maxResultRecords": 1000
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        }
+      },
+      "10": {
+        "type": "data",
+        "title": "Avg CPU usage",
+        "query": "timeseries cpu = avg(dt.host.cpu.usage)\n| fieldsAdd `Avg CPU` = arrayAvg(cpu)",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "singleValue": {
+            "labelMode": "none",
+            "label": "Avg CPU",
+            "recordField": "Avg CPU",
+            "colorThresholdTarget": "background",
+            "trend": {
+              "isVisible": true
+            },
+            "sparklineSettings": {
+              "record": "cpu",
+              "variant": "area"
+            }
+          },
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "custom-color",
+                "comparator": "<",
+                "customColor": "#134FC9",
+                "field": "Avg CPU",
+                "type": "number",
+                "value": 80
+              },
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": "#C4233B",
+                "field": "Avg CPU",
+                "type": "number",
+                "value": 80
+              }
+            ]
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "Avg CPU",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 1,
+              "suffix": " %",
+              "delimiter": true
+            }
+          ]
+        },
+        "querySettings": {
+          "defaultSamplingRatio": 10,
+          "defaultScanLimitGbytes": 500,
+          "enableSampling": false,
+          "maxResultMegaBytes": 1,
+          "maxResultRecords": 1000
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        }
+      },
+      "11": {
+        "type": "data",
+        "title": "Avg memory usage",
+        "query": "timeseries mem = avg(dt.host.memory.usage)\n| fieldsAdd `Avg memory` = arrayAvg(mem)",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "singleValue": {
+            "labelMode": "none",
+            "label": "Avg memory",
+            "recordField": "Avg memory",
+            "colorThresholdTarget": "background",
+            "trend": {
+              "isVisible": true
+            },
+            "sparklineSettings": {
+              "record": "mem",
+              "variant": "area"
+            }
+          },
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "custom-color",
+                "comparator": "<",
+                "customColor": "#2A6FDB",
+                "field": "Avg memory",
+                "type": "number",
+                "value": 85
+              },
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": "#C4233B",
+                "field": "Avg memory",
+                "type": "number",
+                "value": 85
+              }
+            ]
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "Avg memory",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 1,
+              "suffix": " %",
+              "delimiter": true
+            }
+          ]
+        },
+        "querySettings": {
+          "defaultSamplingRatio": 10,
+          "defaultScanLimitGbytes": 500,
+          "enableSampling": false,
+          "maxResultMegaBytes": 1,
+          "maxResultRecords": 1000
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        }
+      },
+      "12": {
+        "type": "data",
+        "title": "Fullest disk",
+        "query": "timeseries disk = max(dt.host.disk.used.percent)\n| fieldsAdd `Fullest disk` = arrayMax(disk)",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "singleValue": {
+            "labelMode": "none",
+            "label": "Fullest disk",
+            "recordField": "Fullest disk",
+            "colorThresholdTarget": "background",
+            "trend": {
+              "isVisible": true
+            },
+            "sparklineSettings": {
+              "record": "disk",
+              "variant": "area"
+            }
+          },
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "custom-color",
+                "comparator": "<",
+                "customColor": "#1B7FA6",
+                "field": "Fullest disk",
+                "type": "number",
+                "value": 90
+              },
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": "#E8A317",
+                "field": "Fullest disk",
+                "type": "number",
+                "value": 90
+              }
+            ]
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "Fullest disk",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 1,
+              "suffix": " %",
+              "delimiter": true
+            }
+          ]
+        },
+        "querySettings": {
+          "defaultSamplingRatio": 10,
+          "defaultScanLimitGbytes": 500,
+          "enableSampling": false,
+          "maxResultMegaBytes": 1,
+          "maxResultRecords": 1000
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        }
+      },
+      "13": {
+        "type": "data",
+        "title": "Open problems",
+        "query": "fetch dt.davis.problems\n| filter event.status == \"ACTIVE\" and not(dt.davis.is_duplicate)\n| summarize `Open problems` = countDistinct(event.id)",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "singleValue": {
+            "labelMode": "none",
+            "label": "Open problems",
+            "recordField": "Open problems",
+            "colorThresholdTarget": "background",
+            "trend": {
+              "isVisible": false
+            },
+            "isIconVisible": true,
+            "prefixIcon": "ProblemIcon"
+          },
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "custom-color",
+                "comparator": "=",
+                "customColor": "#0B2E59",
+                "field": "Open problems",
+                "type": "number",
+                "value": 0
+              },
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": "#C4233B",
+                "field": "Open problems",
+                "type": "number",
+                "value": 1
+              }
+            ]
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "Open problems",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 0,
+              "suffix": "",
+              "delimiter": true
+            }
+          ]
+        },
+        "querySettings": {
+          "defaultSamplingRatio": 10,
+          "defaultScanLimitGbytes": 500,
+          "enableSampling": false,
+          "maxResultMegaBytes": 1,
+          "maxResultRecords": 1000
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        }
+      },
+      "14": {
+        "type": "markdown",
+        "content": "## 📈 Service response time"
+      },
+      "15": {
+        "type": "data",
+        "title": "Avg response time by service (ms)",
+        "query": "timeseries rt = avg(dt.service.request.response_time), by: {dt.entity.service}\n| fieldsAdd rt = rt[] / 1000\n| fieldsAdd service = entityName(dt.entity.service)\n| fieldsRemove dt.entity.service",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "color-palette",
+                "colorPalette": "blue",
+                "comparator": "= *value*",
+                "field": "service",
+                "type": "string",
+                "value": ""
+              }
+            ]
+          },
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "tooltip": {
+              "variant": "shared"
+            }
+          }
+        },
+        "querySettings": {
+          "defaultSamplingRatio": 10,
+          "defaultScanLimitGbytes": 500,
+          "enableSampling": false,
+          "maxResultMegaBytes": 1,
+          "maxResultRecords": 1000
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        }
+      },
+      "16": {
+        "type": "data",
+        "title": "Requests by service",
+        "query": "timeseries req = sum(dt.service.request.count), by: {dt.entity.service}\n| fieldsAdd service = entityName(dt.entity.service)\n| fieldsRemove dt.entity.service",
+        "visualization": "areaChart",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "color-palette",
+                "colorPalette": "blue-turquoise",
+                "comparator": "= *value*",
+                "field": "service",
+                "type": "string",
+                "value": ""
+              }
+            ]
+          },
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "tooltip": {
+              "variant": "shared"
+            }
+          }
+        },
+        "querySettings": {
+          "defaultSamplingRatio": 10,
+          "defaultScanLimitGbytes": 500,
+          "enableSampling": false,
+          "maxResultMegaBytes": 1,
+          "maxResultRecords": 1000
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        }
+      },
+      "17": {
+        "type": "data",
+        "title": "Failed requests by service",
+        "query": "timeseries fail = sum(dt.service.request.failure_count), by: {dt.entity.service}\n| fieldsAdd service = entityName(dt.entity.service)\n| fieldsRemove dt.entity.service",
+        "visualization": "barChart",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "color-palette",
+                "colorPalette": "purple",
+                "comparator": "= *value*",
+                "field": "service",
+                "type": "string",
+                "value": ""
+              }
+            ]
+          },
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "tooltip": {
+              "variant": "shared"
+            }
+          }
+        },
+        "querySettings": {
+          "defaultSamplingRatio": 10,
+          "defaultScanLimitGbytes": 500,
+          "enableSampling": false,
+          "maxResultMegaBytes": 1,
+          "maxResultRecords": 1000
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        }
+      },
+      "18": {
+        "type": "data",
+        "title": "Slowest services",
+        "query": "timeseries { rt = avg(dt.service.request.response_time), req = sum(dt.service.request.count), fail = sum(dt.service.request.failure_count) }, by: {dt.entity.service}\n| fields Service = entityName(dt.entity.service), `Avg response time (ms)` = arrayAvg(rt) / 1000, Requests = arraySum(req), `Failure rate %` = 100 * arraySum(fail) / arraySum(req)\n| sort `Avg response time (ms)` desc\n| limit 10",
+        "visualization": "table",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "custom-color",
+                "comparator": "<",
+                "customColor": "#3A8DDE",
+                "field": "Avg response time (ms)",
+                "type": "number",
+                "value": 500
+              },
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": "#C4233B",
+                "field": "Avg response time (ms)",
+                "type": "number",
+                "value": 500
+              },
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": "#C4233B",
+                "field": "Failure rate %",
+                "type": "number",
+                "value": 1
+              }
+            ]
+          },
+          "table": {
+            "rowDensity": "comfortable"
+          }
+        },
+        "querySettings": {
+          "defaultSamplingRatio": 10,
+          "defaultScanLimitGbytes": 500,
+          "enableSampling": false,
+          "maxResultMegaBytes": 1,
+          "maxResultRecords": 1000
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        }
+      },
+      "19": {
+        "type": "markdown",
+        "content": "## 🌊 Host resources"
+      },
+      "20": {
+        "type": "data",
+        "title": "CPU usage % by host",
+        "query": "timeseries cpu = avg(dt.host.cpu.usage), by: {dt.entity.host}\n| fieldsAdd host = entityName(dt.entity.host)\n| fieldsRemove dt.entity.host",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "color-palette",
+                "colorPalette": "blue",
+                "comparator": "= *value*",
+                "field": "host",
+                "type": "string",
+                "value": ""
+              }
+            ]
+          },
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "tooltip": {
+              "variant": "shared"
+            }
+          }
+        },
+        "querySettings": {
+          "defaultSamplingRatio": 10,
+          "defaultScanLimitGbytes": 500,
+          "enableSampling": false,
+          "maxResultMegaBytes": 1,
+          "maxResultRecords": 1000
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        }
+      },
+      "21": {
+        "type": "data",
+        "title": "Memory usage % by host",
+        "query": "timeseries mem = avg(dt.host.memory.usage), by: {dt.entity.host}\n| fieldsAdd host = entityName(dt.entity.host)\n| fieldsRemove dt.entity.host",
+        "visualization": "lineChart",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "color-palette",
+                "colorPalette": "blue-turquoise",
+                "comparator": "= *value*",
+                "field": "host",
+                "type": "string",
+                "value": ""
+              }
+            ]
+          },
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "tooltip": {
+              "variant": "shared"
+            }
+          }
+        },
+        "querySettings": {
+          "defaultSamplingRatio": 10,
+          "defaultScanLimitGbytes": 500,
+          "enableSampling": false,
+          "maxResultMegaBytes": 1,
+          "maxResultRecords": 1000
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        }
+      },
+      "22": {
+        "type": "data",
+        "title": "Network traffic (all hosts)",
+        "query": "timeseries { received = sum(dt.host.net.nic.bytes_rx), sent = sum(dt.host.net.nic.bytes_tx) }",
+        "visualization": "areaChart",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "color-palette",
+                "colorPalette": "blue",
+                "comparator": "= *value*",
+                "field": "DT.name",
+                "type": "string",
+                "value": ""
+              }
+            ]
+          },
+          "chartSettings": {
+            "xAxisScaling": "analyzedTimeframe",
+            "tooltip": {
+              "variant": "shared"
+            }
+          }
+        },
+        "querySettings": {
+          "defaultSamplingRatio": 10,
+          "defaultScanLimitGbytes": 500,
+          "enableSampling": false,
+          "maxResultMegaBytes": 1,
+          "maxResultRecords": 1000
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        }
+      },
+      "23": {
+        "type": "data",
+        "title": "Host health",
+        "query": "timeseries { cpu = avg(dt.host.cpu.usage), mem = avg(dt.host.memory.usage), disk = max(dt.host.disk.used.percent) }, by: {dt.entity.host}\n| fields Host = entityName(dt.entity.host), `CPU %` = arrayAvg(cpu), `Memory %` = arrayAvg(mem), `Fullest disk %` = arrayMax(disk)\n| sort `CPU %` desc",
+        "visualization": "table",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": "#C4233B",
+                "field": "CPU %",
+                "type": "number",
+                "value": 80
+              },
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": "#C4233B",
+                "field": "Memory %",
+                "type": "number",
+                "value": 85
+              },
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": "#E8A317",
+                "field": "Fullest disk %",
+                "type": "number",
+                "value": 90
+              }
+            ]
+          },
+          "table": {
+            "rowDensity": "comfortable"
+          }
+        },
+        "querySettings": {
+          "defaultSamplingRatio": 10,
+          "defaultScanLimitGbytes": 500,
+          "enableSampling": false,
+          "maxResultMegaBytes": 1,
+          "maxResultRecords": 1000
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        }
+      },
+      "24": {
+        "type": "markdown",
+        "content": "## ⚙️ Monitoring configuration"
+      },
+      "25": {
+        "type": "data",
+        "title": "OneAgent configuration by host",
+        "query": "fetch dt.entity.host\n| fieldsAdd osType, monitoringMode, installerVersion, hostGroupName, cpuCores, physicalMemory, state\n| fields Host = entity.name, OS = osType, `Monitoring mode` = monitoringMode, `OneAgent version` = installerVersion,\n    `Host group` = hostGroupName, `CPU cores` = cpuCores, `Memory (GiB)` = round(physicalMemory / 1073741824.0, decimals: 1), State = state\n| sort Host asc",
+        "visualization": "table",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "table": {
+            "rowDensity": "comfortable"
+          }
+        },
+        "querySettings": {
+          "defaultSamplingRatio": 10,
+          "defaultScanLimitGbytes": 500,
+          "enableSampling": false,
+          "maxResultMegaBytes": 1,
+          "maxResultRecords": 1000
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        }
+      },
+      "26": {
+        "type": "markdown",
+        "content": "### 🎯 Thresholds used\n| Metric | Healthy (blue) | Alert |\n|---|---|---|\n| Avg response time | < 500 ms | ≥ 500 ms 🔴 |\n| P90 response time | < 1000 ms | ≥ 1000 ms 🔴 |\n| Failure rate | < 1 % | ≥ 1 % 🔴 |\n| Avg CPU | < 80 % | ≥ 80 % 🔴 |\n| Avg memory | < 85 % | ≥ 85 % 🔴 |\n| Fullest disk | < 90 % | ≥ 90 % 🟠 |\n| Open problems | 0 | ≥ 1 🔴 |\n\nChange thresholds in the tile colour rules (and update this table)."
+      }
+    },
+    "layouts": {
+      "0": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 6
+      },
+      "1": {
+        "x": 0,
+        "y": 6,
+        "w": 24,
+        "h": 2
+      },
+      "2": {
+        "x": 0,
+        "y": 8,
+        "w": 24,
+        "h": 1
+      },
+      "3": {
+        "x": 0,
+        "y": 9,
+        "w": 5,
+        "h": 4
+      },
+      "4": {
+        "x": 5,
+        "y": 9,
+        "w": 5,
+        "h": 4
+      },
+      "5": {
+        "x": 10,
+        "y": 9,
+        "w": 5,
+        "h": 4
+      },
+      "6": {
+        "x": 15,
+        "y": 9,
+        "w": 5,
+        "h": 4
+      },
+      "7": {
+        "x": 20,
+        "y": 9,
+        "w": 4,
+        "h": 4
+      },
+      "8": {
+        "x": 0,
+        "y": 13,
+        "w": 24,
+        "h": 1
+      },
+      "9": {
+        "x": 0,
+        "y": 14,
+        "w": 4,
+        "h": 4
+      },
+      "10": {
+        "x": 4,
+        "y": 14,
+        "w": 5,
+        "h": 4
+      },
+      "11": {
+        "x": 9,
+        "y": 14,
+        "w": 5,
+        "h": 4
+      },
+      "12": {
+        "x": 14,
+        "y": 14,
+        "w": 5,
+        "h": 4
+      },
+      "13": {
+        "x": 19,
+        "y": 14,
+        "w": 5,
+        "h": 4
+      },
+      "14": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 1
+      },
+      "15": {
+        "x": 0,
+        "y": 19,
+        "w": 12,
+        "h": 6
+      },
+      "16": {
+        "x": 12,
+        "y": 19,
+        "w": 12,
+        "h": 6
+      },
+      "17": {
+        "x": 0,
+        "y": 25,
+        "w": 10,
+        "h": 6
+      },
+      "18": {
+        "x": 10,
+        "y": 25,
+        "w": 14,
+        "h": 6
+      },
+      "19": {
+        "x": 0,
+        "y": 31,
+        "w": 24,
+        "h": 1
+      },
+      "20": {
+        "x": 0,
+        "y": 32,
+        "w": 8,
+        "h": 6
+      },
+      "21": {
+        "x": 8,
+        "y": 32,
+        "w": 8,
+        "h": 6
+      },
+      "22": {
+        "x": 16,
+        "y": 32,
+        "w": 8,
+        "h": 6
+      },
+      "23": {
+        "x": 0,
+        "y": 38,
+        "w": 24,
+        "h": 5
+      },
+      "24": {
+        "x": 0,
+        "y": 43,
+        "w": 24,
+        "h": 1
+      },
+      "25": {
+        "x": 0,
+        "y": 44,
+        "w": 16,
+        "h": 6
+      },
+      "26": {
+        "x": 16,
+        "y": 44,
+        "w": 8,
+        "h": 6
+      }
+    }
+  }
+}
