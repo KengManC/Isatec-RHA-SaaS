@@ -7,7 +7,7 @@
     "tiles": {
       "0": {
         "type": "markdown",
-        "content": "## 🖼️ Sean is Happy — banner image\n_Image placeholder: the banner image goes here once it is hosted at an https URL._"
+        "content": "![Sean is Happy banner](https://as1.ftcdn.net/v2/jpg/02/75/63/56/1000_F_275635693_A2S8CfjVwHpiw0trggVRcLGdbJ8g0Fs0.jpg)\n\n**Sean is Happy** · team banner"
       },
       "1": {
         "type": "markdown",
