@@ -15,6 +15,8 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
 ## [Unreleased]
 
 ### Changed
+- Notebook `[RHA] Claude's Default Testing Notebook`: both JustGo breach tiles show `User events`, the number
+  of view events each `avg_ms` was calculated from.
 - Notebook `[RHA] Claude's Default Testing Notebook`: top-3 JustGo services tile shows response time and
   request count in separate, sortable columns for each of the 3 services.
 - Notebook `[RHA] Claude's Default Testing Notebook`: top-3 JustGo services tile grouped to one row per
