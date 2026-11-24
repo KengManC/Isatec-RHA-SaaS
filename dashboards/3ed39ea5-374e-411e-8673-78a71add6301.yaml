@@ -1,0 +1,986 @@
+content:
+  annotations: []
+  baseQueries: []
+  layouts:
+    "0":
+      h: 4
+      w: 23
+      x: 0
+      "y": 0
+    "1":
+      h: 2
+      w: 24
+      x: 0
+      "y": 4
+    "2":
+      h: 1
+      w: 24
+      x: 0
+      "y": 6
+    "3":
+      h: 4
+      w: 5
+      x: 0
+      "y": 7
+    "4":
+      h: 4
+      w: 5
+      x: 5
+      "y": 7
+    "5":
+      h: 4
+      w: 5
+      x: 10
+      "y": 7
+    "6":
+      h: 4
+      w: 5
+      x: 15
+      "y": 7
+    "7":
+      h: 4
+      w: 4
+      x: 20
+      "y": 7
+    "8":
+      h: 1
+      w: 24
+      x: 0
+      "y": 11
+    "9":
+      h: 4
+      w: 4
+      x: 0
+      "y": 12
+    "10":
+      h: 4
+      w: 5
+      x: 4
+      "y": 12
+    "11":
+      h: 4
+      w: 5
+      x: 9
+      "y": 12
+    "12":
+      h: 4
+      w: 5
+      x: 14
+      "y": 12
+    "13":
+      h: 4
+      w: 5
+      x: 19
+      "y": 12
+    "14":
+      h: 1
+      w: 24
+      x: 0
+      "y": 16
+    "15":
+      h: 6
+      w: 12
+      x: 0
+      "y": 17
+    "16":
+      h: 6
+      w: 12
+      x: 12
+      "y": 17
+    "17":
+      h: 6
+      w: 10
+      x: 0
+      "y": 23
+    "18":
+      h: 6
+      w: 14
+      x: 10
+      "y": 23
+    "19":
+      h: 1
+      w: 24
+      x: 0
+      "y": 29
+    "20":
+      h: 6
+      w: 8
+      x: 0
+      "y": 30
+    "21":
+      h: 6
+      w: 8
+      x: 8
+      "y": 30
+    "22":
+      h: 6
+      w: 8
+      x: 16
+      "y": 30
+    "23":
+      h: 5
+      w: 24
+      x: 0
+      "y": 36
+    "24":
+      h: 1
+      w: 24
+      x: 0
+      "y": 41
+    "25":
+      h: 6
+      w: 16
+      x: 0
+      "y": 42
+    "26":
+      h: 6
+      w: 8
+      x: 16
+      "y": 42
+  rows: []
+  settings: {}
+  tiles:
+    "0":
+      content: |-
+        ![Sean is Happy banner](https://as1.ftcdn.net/v2/jpg/02/75/63/56/1000_F_275635693_A2S8CfjVwHpiw0trggVRcLGdbJ8g0Fs0.jpg)
+
+        **Sean is Happy** · team banner
+      type: markdown
+    "1":
+      content: "# \U0001F499 Sean is Happy\nService response time, infrastructure health and monitoring configuration for **rha75589**. Tiles turn **blue** when healthy, **amber/red** when a threshold is crossed. Source: `dashboards/sean-is-happy/` in the Isatec-RHA-SaaS repo."
+      type: markdown
+    "2":
+      content: '## ⚡ Service performance'
+      type: markdown
+    "3":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: |-
+        timeseries rt = avg(dt.service.request.response_time)
+        | fieldsAdd rt = rt[] / 1000
+        | fieldsAdd `Avg response time` = arrayAvg(rt)
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 1
+        maxResultRecords: 1000
+      title: Avg response time
+      type: data
+      visualization: singleValue
+      visualizationSettings:
+        autoSelectVisualization: false
+        coloring:
+          colorRules:
+            - colorMode: custom-color
+              comparator: <
+              customColor: '#134FC9'
+              field: Avg response time
+              type: number
+              value: 500
+            - colorMode: custom-color
+              comparator: ≥
+              customColor: '#C4233B'
+              field: Avg response time
+              type: number
+              value: 500
+        singleValue:
+          colorThresholdTarget: background
+          isIconVisible: true
+          label: Avg response time
+          labelMode: none
+          prefixIcon: ResponseTimeIcon
+          recordField: Avg response time
+          sparklineSettings:
+            record: rt
+            variant: area
+          trend:
+            isVisible: true
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 1
+            delimiter: true
+            displayUnit: null
+            identifier: Avg response time
+            suffix: ' ms'
+            unitCategory: unspecified
+    "4":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: |-
+        timeseries p90 = percentile(dt.service.request.response_time, 90)
+        | fieldsAdd p90 = p90[] / 1000
+        | fieldsAdd `P90 response time` = arrayAvg(p90)
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 1
+        maxResultRecords: 1000
+      title: P90 response time
+      type: data
+      visualization: singleValue
+      visualizationSettings:
+        autoSelectVisualization: false
+        coloring:
+          colorRules:
+            - colorMode: custom-color
+              comparator: <
+              customColor: '#0B2E59'
+              field: P90 response time
+              type: number
+              value: 1000
+            - colorMode: custom-color
+              comparator: ≥
+              customColor: '#C4233B'
+              field: P90 response time
+              type: number
+              value: 1000
+        singleValue:
+          colorThresholdTarget: background
+          label: P90 response time
+          labelMode: none
+          recordField: P90 response time
+          sparklineSettings:
+            record: p90
+            variant: area
+          trend:
+            isVisible: true
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 1
+            delimiter: true
+            displayUnit: null
+            identifier: P90 response time
+            suffix: ' ms'
+            unitCategory: unspecified
+    "5":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: |-
+        timeseries req = sum(dt.service.request.count)
+        | fieldsAdd Requests = arraySum(req)
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 1
+        maxResultRecords: 1000
+      title: Service requests
+      type: data
+      visualization: singleValue
+      visualizationSettings:
+        autoSelectVisualization: false
+        coloring:
+          colorRules:
+            - colorMode: custom-color
+              comparator: ≥
+              customColor: '#2A6FDB'
+              field: Requests
+              type: number
+              value: 0
+        singleValue:
+          colorThresholdTarget: background
+          label: Requests
+          labelMode: none
+          recordField: Requests
+          sparklineSettings:
+            record: req
+            variant: area
+          trend:
+            isVisible: true
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 0
+            delimiter: true
+            displayUnit: null
+            identifier: Requests
+            suffix: ""
+            unitCategory: unspecified
+    "6":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: |-
+        timeseries { req = sum(dt.service.request.count), fail = sum(dt.service.request.failure_count) }
+        | fieldsAdd fr = 100 * fail[] / req[]
+        | fieldsAdd `Failure rate` = 100 * arraySum(fail) / arraySum(req)
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 1
+        maxResultRecords: 1000
+      title: Failure rate
+      type: data
+      visualization: singleValue
+      visualizationSettings:
+        autoSelectVisualization: false
+        coloring:
+          colorRules:
+            - colorMode: custom-color
+              comparator: <
+              customColor: '#1B7FA6'
+              field: Failure rate
+              type: number
+              value: 1
+            - colorMode: custom-color
+              comparator: ≥
+              customColor: '#C4233B'
+              field: Failure rate
+              type: number
+              value: 1
+        singleValue:
+          colorThresholdTarget: background
+          label: Failure rate
+          labelMode: none
+          recordField: Failure rate
+          sparklineSettings:
+            record: fr
+            variant: area
+          trend:
+            isVisible: true
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Failure rate
+            suffix: ' %'
+            unitCategory: unspecified
+    "7":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: |-
+        fetch dt.entity.service
+        | summarize Services = count()
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 1
+        maxResultRecords: 1000
+      title: Services monitored
+      type: data
+      visualization: singleValue
+      visualizationSettings:
+        autoSelectVisualization: false
+        coloring:
+          colorRules:
+            - colorMode: custom-color
+              comparator: ≥
+              customColor: '#2F5D8A'
+              field: Services
+              type: number
+              value: 0
+        singleValue:
+          colorThresholdTarget: background
+          isIconVisible: true
+          label: Services
+          labelMode: none
+          prefixIcon: ServicesIcon
+          recordField: Services
+          trend:
+            isVisible: false
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 0
+            delimiter: true
+            displayUnit: null
+            identifier: Services
+            suffix: ""
+            unitCategory: unspecified
+    "8":
+      content: "## \U0001F5A5️ Infrastructure health"
+      type: markdown
+    "9":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: |-
+        fetch dt.entity.host
+        | summarize Hosts = count()
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 1
+        maxResultRecords: 1000
+      title: Hosts monitored
+      type: data
+      visualization: singleValue
+      visualizationSettings:
+        autoSelectVisualization: false
+        coloring:
+          colorRules:
+            - colorMode: custom-color
+              comparator: ≥
+              customColor: '#2F5D8A'
+              field: Hosts
+              type: number
+              value: 0
+        singleValue:
+          colorThresholdTarget: background
+          isIconVisible: true
+          label: Hosts
+          labelMode: none
+          prefixIcon: HostsIcon
+          recordField: Hosts
+          trend:
+            isVisible: false
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 0
+            delimiter: true
+            displayUnit: null
+            identifier: Hosts
+            suffix: ""
+            unitCategory: unspecified
+    "10":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: |-
+        timeseries cpu = avg(dt.host.cpu.usage)
+        | fieldsAdd `Avg CPU` = arrayAvg(cpu)
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 1
+        maxResultRecords: 1000
+      title: Avg CPU usage
+      type: data
+      visualization: singleValue
+      visualizationSettings:
+        autoSelectVisualization: false
+        coloring:
+          colorRules:
+            - colorMode: custom-color
+              comparator: <
+              customColor: '#134FC9'
+              field: Avg CPU
+              type: number
+              value: 80
+            - colorMode: custom-color
+              comparator: ≥
+              customColor: '#C4233B'
+              field: Avg CPU
+              type: number
+              value: 80
+        singleValue:
+          colorThresholdTarget: background
+          label: Avg CPU
+          labelMode: none
+          recordField: Avg CPU
+          sparklineSettings:
+            record: cpu
+            variant: area
+          trend:
+            isVisible: true
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 1
+            delimiter: true
+            displayUnit: null
+            identifier: Avg CPU
+            suffix: ' %'
+            unitCategory: unspecified
+    "11":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: |-
+        timeseries mem = avg(dt.host.memory.usage)
+        | fieldsAdd `Avg memory` = arrayAvg(mem)
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 1
+        maxResultRecords: 1000
+      title: Avg memory usage
+      type: data
+      visualization: singleValue
+      visualizationSettings:
+        autoSelectVisualization: false
+        coloring:
+          colorRules:
+            - colorMode: custom-color
+              comparator: <
+              customColor: '#2A6FDB'
+              field: Avg memory
+              type: number
+              value: 85
+            - colorMode: custom-color
+              comparator: ≥
+              customColor: '#C4233B'
+              field: Avg memory
+              type: number
+              value: 85
+        singleValue:
+          colorThresholdTarget: background
+          label: Avg memory
+          labelMode: none
+          recordField: Avg memory
+          sparklineSettings:
+            record: mem
+            variant: area
+          trend:
+            isVisible: true
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 1
+            delimiter: true
+            displayUnit: null
+            identifier: Avg memory
+            suffix: ' %'
+            unitCategory: unspecified
+    "12":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: |-
+        timeseries disk = max(dt.host.disk.used.percent)
+        | fieldsAdd `Fullest disk` = arrayMax(disk)
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 1
+        maxResultRecords: 1000
+      title: Fullest disk
+      type: data
+      visualization: singleValue
+      visualizationSettings:
+        autoSelectVisualization: false
+        coloring:
+          colorRules:
+            - colorMode: custom-color
+              comparator: <
+              customColor: '#1B7FA6'
+              field: Fullest disk
+              type: number
+              value: 90
+            - colorMode: custom-color
+              comparator: ≥
+              customColor: '#E8A317'
+              field: Fullest disk
+              type: number
+              value: 90
+        singleValue:
+          colorThresholdTarget: background
+          label: Fullest disk
+          labelMode: none
+          recordField: Fullest disk
+          sparklineSettings:
+            record: disk
+            variant: area
+          trend:
+            isVisible: true
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 1
+            delimiter: true
+            displayUnit: null
+            identifier: Fullest disk
+            suffix: ' %'
+            unitCategory: unspecified
+    "13":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: |-
+        fetch dt.davis.problems
+        | filter event.status == "ACTIVE" and not(dt.davis.is_duplicate)
+        | summarize `Open problems` = countDistinct(event.id)
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 1
+        maxResultRecords: 1000
+      title: Open problems
+      type: data
+      visualization: singleValue
+      visualizationSettings:
+        autoSelectVisualization: false
+        coloring:
+          colorRules:
+            - colorMode: custom-color
+              comparator: =
+              customColor: '#0B2E59'
+              field: Open problems
+              type: number
+              value: 0
+            - colorMode: custom-color
+              comparator: ≥
+              customColor: '#C4233B'
+              field: Open problems
+              type: number
+              value: 1
+        singleValue:
+          colorThresholdTarget: background
+          isIconVisible: true
+          label: Open problems
+          labelMode: none
+          prefixIcon: ProblemIcon
+          recordField: Open problems
+          trend:
+            isVisible: false
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 0
+            delimiter: true
+            displayUnit: null
+            identifier: Open problems
+            suffix: ""
+            unitCategory: unspecified
+    "14":
+      content: "## \U0001F4C8 Service response time"
+      type: markdown
+    "15":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: |-
+        timeseries rt = avg(dt.service.request.response_time), by: {dt.entity.service}
+        | fieldsAdd rt = rt[] / 1000
+        | fieldsAdd service = entityName(dt.entity.service)
+        | fieldsRemove dt.entity.service
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 1
+        maxResultRecords: 1000
+      title: Avg response time by service (ms)
+      type: data
+      visualization: lineChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          tooltip:
+            variant: shared
+          xAxisScaling: analyzedTimeframe
+        coloring:
+          colorRules:
+            - colorMode: color-palette
+              colorPalette: blue
+              comparator: = *value*
+              field: service
+              type: string
+              value: ""
+    "16":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: |-
+        timeseries req = sum(dt.service.request.count), by: {dt.entity.service}
+        | fieldsAdd service = entityName(dt.entity.service)
+        | fieldsRemove dt.entity.service
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 1
+        maxResultRecords: 1000
+      title: Requests by service
+      type: data
+      visualization: areaChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          tooltip:
+            variant: shared
+          xAxisScaling: analyzedTimeframe
+        coloring:
+          colorRules:
+            - colorMode: color-palette
+              colorPalette: blue-turquoise
+              comparator: = *value*
+              field: service
+              type: string
+              value: ""
+    "17":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: |-
+        timeseries fail = sum(dt.service.request.failure_count), by: {dt.entity.service}
+        | fieldsAdd service = entityName(dt.entity.service)
+        | fieldsRemove dt.entity.service
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 1
+        maxResultRecords: 1000
+      title: Failed requests by service
+      type: data
+      visualization: barChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          tooltip:
+            variant: shared
+          xAxisScaling: analyzedTimeframe
+        coloring:
+          colorRules:
+            - colorMode: color-palette
+              colorPalette: purple
+              comparator: = *value*
+              field: service
+              type: string
+              value: ""
+    "18":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: |-
+        timeseries { rt = avg(dt.service.request.response_time), req = sum(dt.service.request.count), fail = sum(dt.service.request.failure_count) }, by: {dt.entity.service}
+        | fields Service = entityName(dt.entity.service), `Avg response time (ms)` = arrayAvg(rt) / 1000, Requests = arraySum(req), `Failure rate %` = 100 * arraySum(fail) / arraySum(req)
+        | sort `Avg response time (ms)` desc
+        | limit 10
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 1
+        maxResultRecords: 1000
+      title: Slowest services
+      type: data
+      visualization: table
+      visualizationSettings:
+        autoSelectVisualization: false
+        coloring:
+          colorRules:
+            - colorMode: custom-color
+              comparator: <
+              customColor: '#3A8DDE'
+              field: Avg response time (ms)
+              type: number
+              value: 500
+            - colorMode: custom-color
+              comparator: ≥
+              customColor: '#C4233B'
+              field: Avg response time (ms)
+              type: number
+              value: 500
+            - colorMode: custom-color
+              comparator: ≥
+              customColor: '#C4233B'
+              field: Failure rate %
+              type: number
+              value: 1
+        table:
+          rowDensity: comfortable
+    "19":
+      content: "## \U0001F30A Host resources"
+      type: markdown
+    "20":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: |-
+        timeseries cpu = avg(dt.host.cpu.usage), by: {dt.entity.host}
+        | fieldsAdd host = entityName(dt.entity.host)
+        | fieldsRemove dt.entity.host
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 1
+        maxResultRecords: 1000
+      title: CPU usage % by host
+      type: data
+      visualization: lineChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          tooltip:
+            variant: shared
+          xAxisScaling: analyzedTimeframe
+        coloring:
+          colorRules:
+            - colorMode: color-palette
+              colorPalette: blue
+              comparator: = *value*
+              field: host
+              type: string
+              value: ""
+    "21":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: |-
+        timeseries mem = avg(dt.host.memory.usage), by: {dt.entity.host}
+        | fieldsAdd host = entityName(dt.entity.host)
+        | fieldsRemove dt.entity.host
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 1
+        maxResultRecords: 1000
+      title: Memory usage % by host
+      type: data
+      visualization: lineChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          tooltip:
+            variant: shared
+          xAxisScaling: analyzedTimeframe
+        coloring:
+          colorRules:
+            - colorMode: color-palette
+              colorPalette: blue-turquoise
+              comparator: = *value*
+              field: host
+              type: string
+              value: ""
+    "22":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: timeseries { received = sum(dt.host.net.nic.bytes_rx), sent = sum(dt.host.net.nic.bytes_tx) }
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 1
+        maxResultRecords: 1000
+      title: Network traffic (all hosts)
+      type: data
+      visualization: areaChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          tooltip:
+            variant: shared
+          xAxisScaling: analyzedTimeframe
+        coloring:
+          colorRules:
+            - colorMode: color-palette
+              colorPalette: blue
+              comparator: = *value*
+              field: DT.name
+              type: string
+              value: ""
+    "23":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: |-
+        timeseries { cpu = avg(dt.host.cpu.usage), mem = avg(dt.host.memory.usage), disk = max(dt.host.disk.used.percent) }, by: {dt.entity.host}
+        | fields Host = entityName(dt.entity.host), `CPU %` = arrayAvg(cpu), `Memory %` = arrayAvg(mem), `Fullest disk %` = arrayMax(disk)
+        | sort `CPU %` desc
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 1
+        maxResultRecords: 1000
+      title: Host health
+      type: data
+      visualization: table
+      visualizationSettings:
+        autoSelectVisualization: false
+        coloring:
+          colorRules:
+            - colorMode: custom-color
+              comparator: ≥
+              customColor: '#C4233B'
+              field: CPU %
+              type: number
+              value: 80
+            - colorMode: custom-color
+              comparator: ≥
+              customColor: '#C4233B'
+              field: Memory %
+              type: number
+              value: 85
+            - colorMode: custom-color
+              comparator: ≥
+              customColor: '#E8A317'
+              field: Fullest disk %
+              type: number
+              value: 90
+        table:
+          rowDensity: comfortable
+    "24":
+      content: '## ⚙️ Monitoring configuration'
+      type: markdown
+    "25":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      query: |-
+        fetch dt.entity.host
+        | fieldsAdd osType, monitoringMode, installerVersion, hostGroupName, cpuCores, physicalMemory, state
+        | fields Host = entity.name, OS = osType, `Monitoring mode` = monitoringMode, `OneAgent version` = installerVersion,
+            `Host group` = hostGroupName, `CPU cores` = cpuCores, `Memory (GiB)` = round(physicalMemory / 1073741824.0, decimals: 1), State = state
+        | sort Host asc
+      querySettings:
+        defaultSamplingRatio: 10
+        defaultScanLimitGbytes: 500
+        enableSampling: false
+        maxResultMegaBytes: 1
+        maxResultRecords: 1000
+      title: OneAgent configuration by host
+      type: data
+      visualization: table
+      visualizationSettings:
+        autoSelectVisualization: false
+        table:
+          rowDensity: comfortable
+    "26":
+      content: "### \U0001F3AF Thresholds used\n| Metric | Healthy (blue) | Alert |\n|---|---|---|\n| Avg response time | < 500 ms | ≥ 500 ms \U0001F534 |\n| P90 response time | < 1000 ms | ≥ 1000 ms \U0001F534 |\n| Failure rate | < 1 % | ≥ 1 % \U0001F534 |\n| Avg CPU | < 80 % | ≥ 80 % \U0001F534 |\n| Avg memory | < 85 % | ≥ 85 % \U0001F534 |\n| Fullest disk | < 90 % | ≥ 90 % \U0001F7E0 |\n| Open problems | 0 | ≥ 1 \U0001F534 |\n\nChange thresholds in the tile colour rules (and update this table)."
+      type: markdown
+  variables: []
+  version: 21
+id: 3ed39ea5-374e-411e-8673-78a71add6301
+isPrivate: true
+modificationInfo:
+  createdTime: 2026-11-23T08:44:32.414Z
+  lastModifiedTime: 2026-11-23T09:13:19.017Z
+name: '[RHA] Sean is Happy'
+owner: 956a626b-e054-4ee0-ac93-b0433ffc861d
+shareInfo:
+  isShared: false
+type: dashboard
+version: 4
