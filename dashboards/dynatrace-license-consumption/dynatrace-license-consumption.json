@@ -1,0 +1,1155 @@
+{
+  "name": "[RHA] Dynatrace License consumption",
+  "type": "dashboard",
+  "content": {
+    "version": 21,
+    "variables": [],
+    "settings": {
+      "defaultTimeframe": {
+        "enabled": true,
+        "value": {
+          "from": "now()-30d",
+          "to": "now()"
+        }
+      }
+    },
+    "tiles": {
+      "0": {
+        "type": "markdown",
+        "content": "# 📊 Dynatrace License consumption\n**Davis Data Units (DDU)** and **Digital Experience Monitoring (DEM)** consumption for the selected timeframe, broken down by pool,\nentity type, host, metric, application and synthetic monitor.\n\n* Template for **classic-licensed** environments (DDU + DEM). In a Dynatrace Platform Subscription (DPS) environment such as rha75589 the\n  `builtin:billing.*` metrics carry no data, so the tiles stay empty here.\n* Every tile reads the classic **Metrics API v2** (`builtin:billing.*`) through a code tile, so it works without Grail.\n  Viewers need permission to read metrics (`environment-api:metrics:read`).\n* DDU values are reported by Dynatrace. **DEM values are estimates**: session, action and request counts × the classic DEM weights\n  (set in `DEM_WEIGHTS` in each DEM tile). For billed figures, see **Account Management → License / Subscription**.\n* Billing metrics lag by about 1–2 h. Use a timeframe of at least 24 h; the default is the last 30 days."
+      },
+      "1": {
+        "type": "markdown",
+        "content": "## 🧮 Summary"
+      },
+      "2": {
+        "type": "code",
+        "title": "Total DDU consumed",
+        "input": "import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';\n\n// ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----\nconst TF_FROM = \"$dt_timeframe_from\";\nconst TF_TO = \"$dt_timeframe_to\";\nconst UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };\nfunction toMs(expr, fallback) {\n  if (!expr || expr.startsWith('$')) return fallback;\n  const iso = Date.parse(expr);\n  if (!isNaN(iso)) return iso;\n  const m = expr.replace(/\\s/g, '').match(/^now(?:\\(\\))?(?:([-+])(\\d+)([smhdwMy]))?(?:@\\w+)?$/);\n  if (!m) return fallback;\n  return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();\n}\nconst TO = toMs(TF_TO, Date.now());\nconst FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);\n\n// ---- DEM unit weights (classic DEM rate card) - align with your contract ----\nconst DEM_WEIGHTS = {\n  webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,\n  mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,\n  customSession: 0.25, customUserActionProperty: 0.01,\n  browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,\n};\n\n// ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----\nasync function q(metricSelector, resolution = 'Inf', extra = {}) {\n  try {\n    const res = await metricsClient.query({\n      acceptType: 'application/json; charset=utf-8',\n      metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,\n    });\n    return (res.result && res.result[0] && res.result[0].data) || [];\n  } catch (e) {\n    console.warn('Metric query failed: ' + metricSelector, e);\n    return [];\n  }\n}\nconst sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);\nconst total = (series) => series.reduce((a, s) => a + sumVals(s), 0);\nconst round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;\nconst dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';\nconst ENTITY_TYPES = {\n  HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',\n  CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',\n  MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',\n  SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',\n  CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',\n  AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',\n};\nconst entityType = (id) => {\n  if (!id) return 'Unattributed';\n  const p = id.replace(/-[0-9A-F]{16}$/i, '');\n  return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();\n};\n\nconst POOLS = [[\"Metrics\", \"builtin:billing.ddu.metrics.total\"], [\"Log Monitoring\", \"builtin:billing.ddu.log.total\"], [\"Events\", \"builtin:billing.ddu.events.total\"], [\"Traces\", \"builtin:billing.ddu.traces.total\"], [\"Serverless\", \"builtin:billing.ddu.serverless.total\"]];\nlet ddu = 0;\nfor (const [, key] of POOLS) ddu += total(await q(key));\nreturn [{ \"Total DDU\": round(ddu) }];\n",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "singleValue": {
+            "labelMode": "none",
+            "label": "Total DDU",
+            "recordField": "Total DDU",
+            "colorThresholdTarget": "background",
+            "isIconVisible": true,
+            "prefixIcon": "DataIcon",
+            "trend": {
+              "isVisible": false
+            },
+            "sparklineSettings": {
+              "isVisible": false
+            }
+          },
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": "#134FC9",
+                "field": "Total DDU",
+                "type": "number",
+                "value": 0
+              }
+            ]
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "Total DDU",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": " DDU",
+              "delimiter": true
+            }
+          ]
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        },
+        "description": "Sum of all DDU pools (metrics, logs, events, traces, serverless) in the timeframe."
+      },
+      "3": {
+        "type": "code",
+        "title": "Metric DDU",
+        "input": "import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';\n\n// ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----\nconst TF_FROM = \"$dt_timeframe_from\";\nconst TF_TO = \"$dt_timeframe_to\";\nconst UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };\nfunction toMs(expr, fallback) {\n  if (!expr || expr.startsWith('$')) return fallback;\n  const iso = Date.parse(expr);\n  if (!isNaN(iso)) return iso;\n  const m = expr.replace(/\\s/g, '').match(/^now(?:\\(\\))?(?:([-+])(\\d+)([smhdwMy]))?(?:@\\w+)?$/);\n  if (!m) return fallback;\n  return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();\n}\nconst TO = toMs(TF_TO, Date.now());\nconst FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);\n\n// ---- DEM unit weights (classic DEM rate card) - align with your contract ----\nconst DEM_WEIGHTS = {\n  webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,\n  mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,\n  customSession: 0.25, customUserActionProperty: 0.01,\n  browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,\n};\n\n// ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----\nasync function q(metricSelector, resolution = 'Inf', extra = {}) {\n  try {\n    const res = await metricsClient.query({\n      acceptType: 'application/json; charset=utf-8',\n      metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,\n    });\n    return (res.result && res.result[0] && res.result[0].data) || [];\n  } catch (e) {\n    console.warn('Metric query failed: ' + metricSelector, e);\n    return [];\n  }\n}\nconst sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);\nconst total = (series) => series.reduce((a, s) => a + sumVals(s), 0);\nconst round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;\nconst dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';\nconst ENTITY_TYPES = {\n  HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',\n  CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',\n  MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',\n  SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',\n  CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',\n  AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',\n};\nconst entityType = (id) => {\n  if (!id) return 'Unattributed';\n  const p = id.replace(/-[0-9A-F]{16}$/i, '');\n  return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();\n};\n\nreturn [{ \"Metric DDU\": round(total(await q('builtin:billing.ddu.metrics.total'))) }];\n",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "singleValue": {
+            "labelMode": "none",
+            "label": "Metric DDU",
+            "recordField": "Metric DDU",
+            "colorThresholdTarget": "background",
+            "isIconVisible": true,
+            "prefixIcon": "ChartLineIcon",
+            "trend": {
+              "isVisible": false
+            },
+            "sparklineSettings": {
+              "isVisible": false
+            }
+          },
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": "#2A7453",
+                "field": "Metric DDU",
+                "type": "number",
+                "value": 0
+              }
+            ]
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "Metric DDU",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": " DDU",
+              "delimiter": true
+            }
+          ]
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        },
+        "description": "DDU consumed by custom, extension, calculated and ingested metrics beyond the included per-host data points."
+      },
+      "4": {
+        "type": "code",
+        "title": "Estimated DEM units",
+        "input": "import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';\n\n// ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----\nconst TF_FROM = \"$dt_timeframe_from\";\nconst TF_TO = \"$dt_timeframe_to\";\nconst UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };\nfunction toMs(expr, fallback) {\n  if (!expr || expr.startsWith('$')) return fallback;\n  const iso = Date.parse(expr);\n  if (!isNaN(iso)) return iso;\n  const m = expr.replace(/\\s/g, '').match(/^now(?:\\(\\))?(?:([-+])(\\d+)([smhdwMy]))?(?:@\\w+)?$/);\n  if (!m) return fallback;\n  return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();\n}\nconst TO = toMs(TF_TO, Date.now());\nconst FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);\n\n// ---- DEM unit weights (classic DEM rate card) - align with your contract ----\nconst DEM_WEIGHTS = {\n  webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,\n  mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,\n  customSession: 0.25, customUserActionProperty: 0.01,\n  browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,\n};\n\n// ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----\nasync function q(metricSelector, resolution = 'Inf', extra = {}) {\n  try {\n    const res = await metricsClient.query({\n      acceptType: 'application/json; charset=utf-8',\n      metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,\n    });\n    return (res.result && res.result[0] && res.result[0].data) || [];\n  } catch (e) {\n    console.warn('Metric query failed: ' + metricSelector, e);\n    return [];\n  }\n}\nconst sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);\nconst total = (series) => series.reduce((a, s) => a + sumVals(s), 0);\nconst round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;\nconst dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';\nconst ENTITY_TYPES = {\n  HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',\n  CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',\n  MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',\n  SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',\n  CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',\n  AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',\n};\nconst entityType = (id) => {\n  if (!id) return 'Unattributed';\n  const p = id.replace(/-[0-9A-F]{16}$/i, '');\n  return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();\n};\n\nconst DEM_PARTS = [\n  ['Web sessions', 'builtin:billing.apps.web.sessionsWithoutReplayByApplication', DEM_WEIGHTS.webSession],\n  ['Web sessions with replay', 'builtin:billing.apps.web.sessionsWithReplayByApplication', DEM_WEIGHTS.webSessionReplay],\n  ['Web user action properties', 'builtin:billing.apps.web.userActionPropertiesByApplication', DEM_WEIGHTS.webUserActionProperty],\n  ['Mobile sessions', 'builtin:billing.apps.mobile.sessionsWithoutReplayByApplication', DEM_WEIGHTS.mobileSession],\n  ['Mobile sessions with replay', 'builtin:billing.apps.mobile.sessionsWithReplayByApplication', DEM_WEIGHTS.mobileSessionReplay],\n  ['Mobile user action properties', 'builtin:billing.apps.mobile.userActionPropertiesByMobileApplication', DEM_WEIGHTS.mobileUserActionProperty],\n  ['Custom app sessions', 'builtin:billing.apps.custom.sessionsWithoutReplayByApplication', DEM_WEIGHTS.customSession],\n  ['Custom app user action properties', 'builtin:billing.apps.custom.userActionPropertiesByDeviceApplication', DEM_WEIGHTS.customUserActionProperty],\n  ['Browser monitor actions', 'builtin:billing.synthetic.actions', DEM_WEIGHTS.browserAction],\n  ['HTTP monitor requests', 'builtin:billing.synthetic.requests', DEM_WEIGHTS.httpRequest],\n  ['Third-party synthetic results', 'builtin:billing.synthetic.external', DEM_WEIGHTS.thirdPartyResult],\n];\nlet dem = 0;\nfor (const [, key, w] of DEM_PARTS) dem += total(await q(key)) * w;\nreturn [{ \"Estimated DEM\": round(dem) }];\n",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "singleValue": {
+            "labelMode": "none",
+            "label": "Estimated DEM",
+            "recordField": "Estimated DEM",
+            "colorThresholdTarget": "background",
+            "isIconVisible": true,
+            "prefixIcon": "UserIcon",
+            "trend": {
+              "isVisible": false
+            },
+            "sparklineSettings": {
+              "isVisible": false
+            }
+          },
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": "#7C38A1",
+                "field": "Estimated DEM",
+                "type": "number",
+                "value": 0
+              }
+            ]
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "Estimated DEM",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": " DEM",
+              "delimiter": true
+            }
+          ]
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        },
+        "description": "Real User Monitoring sessions and synthetic executions converted to DEM units with DEM_WEIGHTS."
+      },
+      "5": {
+        "type": "code",
+        "title": "Session Replay share of web sessions",
+        "input": "import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';\n\n// ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----\nconst TF_FROM = \"$dt_timeframe_from\";\nconst TF_TO = \"$dt_timeframe_to\";\nconst UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };\nfunction toMs(expr, fallback) {\n  if (!expr || expr.startsWith('$')) return fallback;\n  const iso = Date.parse(expr);\n  if (!isNaN(iso)) return iso;\n  const m = expr.replace(/\\s/g, '').match(/^now(?:\\(\\))?(?:([-+])(\\d+)([smhdwMy]))?(?:@\\w+)?$/);\n  if (!m) return fallback;\n  return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();\n}\nconst TO = toMs(TF_TO, Date.now());\nconst FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);\n\n// ---- DEM unit weights (classic DEM rate card) - align with your contract ----\nconst DEM_WEIGHTS = {\n  webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,\n  mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,\n  customSession: 0.25, customUserActionProperty: 0.01,\n  browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,\n};\n\n// ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----\nasync function q(metricSelector, resolution = 'Inf', extra = {}) {\n  try {\n    const res = await metricsClient.query({\n      acceptType: 'application/json; charset=utf-8',\n      metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,\n    });\n    return (res.result && res.result[0] && res.result[0].data) || [];\n  } catch (e) {\n    console.warn('Metric query failed: ' + metricSelector, e);\n    return [];\n  }\n}\nconst sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);\nconst total = (series) => series.reduce((a, s) => a + sumVals(s), 0);\nconst round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;\nconst dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';\nconst ENTITY_TYPES = {\n  HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',\n  CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',\n  MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',\n  SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',\n  CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',\n  AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',\n};\nconst entityType = (id) => {\n  if (!id) return 'Unattributed';\n  const p = id.replace(/-[0-9A-F]{16}$/i, '');\n  return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();\n};\n\nconst plain = total(await q('builtin:billing.apps.web.sessionsWithoutReplayByApplication'));\nconst replay = total(await q('builtin:billing.apps.web.sessionsWithReplayByApplication'));\nconst pct = plain + replay > 0 ? (replay / (plain + replay)) * 100 : 0;\nreturn [{ \"Replay share\": round(pct, 1) }];\n",
+        "visualization": "singleValue",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "singleValue": {
+            "labelMode": "none",
+            "label": "Replay share",
+            "recordField": "Replay share",
+            "colorThresholdTarget": "background",
+            "isIconVisible": true,
+            "prefixIcon": "VideoIcon",
+            "trend": {
+              "isVisible": false
+            },
+            "sparklineSettings": {
+              "isVisible": false
+            }
+          },
+          "coloring": {
+            "colorRules": [
+              {
+                "colorMode": "custom-color",
+                "comparator": "≥",
+                "customColor": "#D56B1A",
+                "field": "Replay share",
+                "type": "number",
+                "value": 0
+              }
+            ]
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "Replay share",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": " %",
+              "delimiter": true
+            }
+          ]
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        },
+        "description": "Share of billed web sessions captured with Session Replay. These cost 4× a plain session (1.0 vs 0.25 DEM)."
+      },
+      "6": {
+        "type": "code",
+        "title": "DDU by pool",
+        "input": "import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';\n\n// ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----\nconst TF_FROM = \"$dt_timeframe_from\";\nconst TF_TO = \"$dt_timeframe_to\";\nconst UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };\nfunction toMs(expr, fallback) {\n  if (!expr || expr.startsWith('$')) return fallback;\n  const iso = Date.parse(expr);\n  if (!isNaN(iso)) return iso;\n  const m = expr.replace(/\\s/g, '').match(/^now(?:\\(\\))?(?:([-+])(\\d+)([smhdwMy]))?(?:@\\w+)?$/);\n  if (!m) return fallback;\n  return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();\n}\nconst TO = toMs(TF_TO, Date.now());\nconst FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);\n\n// ---- DEM unit weights (classic DEM rate card) - align with your contract ----\nconst DEM_WEIGHTS = {\n  webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,\n  mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,\n  customSession: 0.25, customUserActionProperty: 0.01,\n  browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,\n};\n\n// ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----\nasync function q(metricSelector, resolution = 'Inf', extra = {}) {\n  try {\n    const res = await metricsClient.query({\n      acceptType: 'application/json; charset=utf-8',\n      metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,\n    });\n    return (res.result && res.result[0] && res.result[0].data) || [];\n  } catch (e) {\n    console.warn('Metric query failed: ' + metricSelector, e);\n    return [];\n  }\n}\nconst sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);\nconst total = (series) => series.reduce((a, s) => a + sumVals(s), 0);\nconst round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;\nconst dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';\nconst ENTITY_TYPES = {\n  HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',\n  CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',\n  MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',\n  SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',\n  CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',\n  AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',\n};\nconst entityType = (id) => {\n  if (!id) return 'Unattributed';\n  const p = id.replace(/-[0-9A-F]{16}$/i, '');\n  return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();\n};\n\nconst POOLS = [[\"Metrics\", \"builtin:billing.ddu.metrics.total\"], [\"Log Monitoring\", \"builtin:billing.ddu.log.total\"], [\"Events\", \"builtin:billing.ddu.events.total\"], [\"Traces\", \"builtin:billing.ddu.traces.total\"], [\"Serverless\", \"builtin:billing.ddu.serverless.total\"]];\nconst rows = [];\nfor (const [pool, key] of POOLS) rows.push({ Pool: pool, DDU: round(total(await q(key))) });\nreturn rows.filter(r => r.DDU > 0).sort((a, b) => b.DDU - a.DDU);\n",
+        "visualization": "donutChart",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "chartSettings": {
+            "legend": {
+              "position": "right"
+            },
+            "circleChartSettings": {
+              "valueType": "relative"
+            },
+            "categoricalBarChartSettings": {
+              "categoryAxis": "Pool",
+              "categoryAxisLabel": "Pool",
+              "valueAxis": [
+                "DDU"
+              ],
+              "valueAxisLabel": "DDU"
+            }
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "DDU",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            }
+          ]
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        },
+        "description": "Share of DDU consumption per DDU pool."
+      },
+      "7": {
+        "type": "code",
+        "title": "Estimated DEM by capability",
+        "input": "import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';\n\n// ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----\nconst TF_FROM = \"$dt_timeframe_from\";\nconst TF_TO = \"$dt_timeframe_to\";\nconst UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };\nfunction toMs(expr, fallback) {\n  if (!expr || expr.startsWith('$')) return fallback;\n  const iso = Date.parse(expr);\n  if (!isNaN(iso)) return iso;\n  const m = expr.replace(/\\s/g, '').match(/^now(?:\\(\\))?(?:([-+])(\\d+)([smhdwMy]))?(?:@\\w+)?$/);\n  if (!m) return fallback;\n  return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();\n}\nconst TO = toMs(TF_TO, Date.now());\nconst FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);\n\n// ---- DEM unit weights (classic DEM rate card) - align with your contract ----\nconst DEM_WEIGHTS = {\n  webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,\n  mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,\n  customSession: 0.25, customUserActionProperty: 0.01,\n  browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,\n};\n\n// ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----\nasync function q(metricSelector, resolution = 'Inf', extra = {}) {\n  try {\n    const res = await metricsClient.query({\n      acceptType: 'application/json; charset=utf-8',\n      metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,\n    });\n    return (res.result && res.result[0] && res.result[0].data) || [];\n  } catch (e) {\n    console.warn('Metric query failed: ' + metricSelector, e);\n    return [];\n  }\n}\nconst sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);\nconst total = (series) => series.reduce((a, s) => a + sumVals(s), 0);\nconst round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;\nconst dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';\nconst ENTITY_TYPES = {\n  HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',\n  CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',\n  MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',\n  SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',\n  CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',\n  AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',\n};\nconst entityType = (id) => {\n  if (!id) return 'Unattributed';\n  const p = id.replace(/-[0-9A-F]{16}$/i, '');\n  return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();\n};\n\nconst DEM_PARTS = [\n  ['Web sessions', 'builtin:billing.apps.web.sessionsWithoutReplayByApplication', DEM_WEIGHTS.webSession],\n  ['Web sessions with replay', 'builtin:billing.apps.web.sessionsWithReplayByApplication', DEM_WEIGHTS.webSessionReplay],\n  ['Web user action properties', 'builtin:billing.apps.web.userActionPropertiesByApplication', DEM_WEIGHTS.webUserActionProperty],\n  ['Mobile sessions', 'builtin:billing.apps.mobile.sessionsWithoutReplayByApplication', DEM_WEIGHTS.mobileSession],\n  ['Mobile sessions with replay', 'builtin:billing.apps.mobile.sessionsWithReplayByApplication', DEM_WEIGHTS.mobileSessionReplay],\n  ['Mobile user action properties', 'builtin:billing.apps.mobile.userActionPropertiesByMobileApplication', DEM_WEIGHTS.mobileUserActionProperty],\n  ['Custom app sessions', 'builtin:billing.apps.custom.sessionsWithoutReplayByApplication', DEM_WEIGHTS.customSession],\n  ['Custom app user action properties', 'builtin:billing.apps.custom.userActionPropertiesByDeviceApplication', DEM_WEIGHTS.customUserActionProperty],\n  ['Browser monitor actions', 'builtin:billing.synthetic.actions', DEM_WEIGHTS.browserAction],\n  ['HTTP monitor requests', 'builtin:billing.synthetic.requests', DEM_WEIGHTS.httpRequest],\n  ['Third-party synthetic results', 'builtin:billing.synthetic.external', DEM_WEIGHTS.thirdPartyResult],\n];\nconst rows = [];\nfor (const [capability, key, w] of DEM_PARTS) {\n  const n = total(await q(key));\n  rows.push({ Capability: capability, Units: round(n, 0), Weight: w, DEM: round(n * w) });\n}\nreturn rows.filter(r => r.DEM > 0).sort((a, b) => b.DEM - a.DEM);\n",
+        "visualization": "donutChart",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "chartSettings": {
+            "legend": {
+              "position": "right"
+            },
+            "circleChartSettings": {
+              "valueType": "relative"
+            },
+            "categoricalBarChartSettings": {
+              "categoryAxis": "Capability",
+              "categoryAxisLabel": "Capability",
+              "valueAxis": [
+                "DEM"
+              ],
+              "valueAxisLabel": "DEM"
+            }
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "DEM",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            }
+          ]
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        },
+        "description": "Share of estimated DEM per RUM / synthetic capability."
+      },
+      "8": {
+        "type": "code",
+        "title": "DEM capability detail",
+        "input": "import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';\n\n// ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----\nconst TF_FROM = \"$dt_timeframe_from\";\nconst TF_TO = \"$dt_timeframe_to\";\nconst UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };\nfunction toMs(expr, fallback) {\n  if (!expr || expr.startsWith('$')) return fallback;\n  const iso = Date.parse(expr);\n  if (!isNaN(iso)) return iso;\n  const m = expr.replace(/\\s/g, '').match(/^now(?:\\(\\))?(?:([-+])(\\d+)([smhdwMy]))?(?:@\\w+)?$/);\n  if (!m) return fallback;\n  return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();\n}\nconst TO = toMs(TF_TO, Date.now());\nconst FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);\n\n// ---- DEM unit weights (classic DEM rate card) - align with your contract ----\nconst DEM_WEIGHTS = {\n  webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,\n  mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,\n  customSession: 0.25, customUserActionProperty: 0.01,\n  browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,\n};\n\n// ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----\nasync function q(metricSelector, resolution = 'Inf', extra = {}) {\n  try {\n    const res = await metricsClient.query({\n      acceptType: 'application/json; charset=utf-8',\n      metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,\n    });\n    return (res.result && res.result[0] && res.result[0].data) || [];\n  } catch (e) {\n    console.warn('Metric query failed: ' + metricSelector, e);\n    return [];\n  }\n}\nconst sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);\nconst total = (series) => series.reduce((a, s) => a + sumVals(s), 0);\nconst round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;\nconst dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';\nconst ENTITY_TYPES = {\n  HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',\n  CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',\n  MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',\n  SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',\n  CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',\n  AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',\n};\nconst entityType = (id) => {\n  if (!id) return 'Unattributed';\n  const p = id.replace(/-[0-9A-F]{16}$/i, '');\n  return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();\n};\n\nconst DEM_PARTS = [\n  ['Web sessions', 'builtin:billing.apps.web.sessionsWithoutReplayByApplication', DEM_WEIGHTS.webSession],\n  ['Web sessions with replay', 'builtin:billing.apps.web.sessionsWithReplayByApplication', DEM_WEIGHTS.webSessionReplay],\n  ['Web user action properties', 'builtin:billing.apps.web.userActionPropertiesByApplication', DEM_WEIGHTS.webUserActionProperty],\n  ['Mobile sessions', 'builtin:billing.apps.mobile.sessionsWithoutReplayByApplication', DEM_WEIGHTS.mobileSession],\n  ['Mobile sessions with replay', 'builtin:billing.apps.mobile.sessionsWithReplayByApplication', DEM_WEIGHTS.mobileSessionReplay],\n  ['Mobile user action properties', 'builtin:billing.apps.mobile.userActionPropertiesByMobileApplication', DEM_WEIGHTS.mobileUserActionProperty],\n  ['Custom app sessions', 'builtin:billing.apps.custom.sessionsWithoutReplayByApplication', DEM_WEIGHTS.customSession],\n  ['Custom app user action properties', 'builtin:billing.apps.custom.userActionPropertiesByDeviceApplication', DEM_WEIGHTS.customUserActionProperty],\n  ['Browser monitor actions', 'builtin:billing.synthetic.actions', DEM_WEIGHTS.browserAction],\n  ['HTTP monitor requests', 'builtin:billing.synthetic.requests', DEM_WEIGHTS.httpRequest],\n  ['Third-party synthetic results', 'builtin:billing.synthetic.external', DEM_WEIGHTS.thirdPartyResult],\n];\nconst rows = [];\nfor (const [capability, key, w] of DEM_PARTS) {\n  const n = total(await q(key));\n  rows.push({ Capability: capability, \"Billed units\": round(n, 0), \"DEM weight\": w, \"Estimated DEM\": round(n * w) });\n}\nconst sum = rows.reduce((a, r) => a + r[\"Estimated DEM\"], 0);\nreturn rows.map(r => ({ ...r, \"Share\": sum ? round(r[\"Estimated DEM\"] / sum * 100, 1) : 0 }))\n  .sort((a, b) => b[\"Estimated DEM\"] - a[\"Estimated DEM\"]);\n",
+        "visualization": "table",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "table": {
+            "rowDensity": "condensed",
+            "enableSparklines": false,
+            "hiddenColumns": [],
+            "lineWrapIds": [],
+            "columnWidths": {}
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "Billed units",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            },
+            {
+              "identifier": "Estimated DEM",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            },
+            {
+              "identifier": "Share",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 1,
+              "suffix": " %",
+              "delimiter": true
+            }
+          ]
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        },
+        "description": "Billed sessions, user action properties, actions, requests and results, and the DEM they convert to."
+      },
+      "9": {
+        "type": "markdown",
+        "content": "## 📈 Daily trend"
+      },
+      "10": {
+        "type": "code",
+        "title": "Daily DDU by pool",
+        "input": "import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';\n\n// ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----\nconst TF_FROM = \"$dt_timeframe_from\";\nconst TF_TO = \"$dt_timeframe_to\";\nconst UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };\nfunction toMs(expr, fallback) {\n  if (!expr || expr.startsWith('$')) return fallback;\n  const iso = Date.parse(expr);\n  if (!isNaN(iso)) return iso;\n  const m = expr.replace(/\\s/g, '').match(/^now(?:\\(\\))?(?:([-+])(\\d+)([smhdwMy]))?(?:@\\w+)?$/);\n  if (!m) return fallback;\n  return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();\n}\nconst TO = toMs(TF_TO, Date.now());\nconst FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);\n\n// ---- DEM unit weights (classic DEM rate card) - align with your contract ----\nconst DEM_WEIGHTS = {\n  webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,\n  mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,\n  customSession: 0.25, customUserActionProperty: 0.01,\n  browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,\n};\n\n// ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----\nasync function q(metricSelector, resolution = 'Inf', extra = {}) {\n  try {\n    const res = await metricsClient.query({\n      acceptType: 'application/json; charset=utf-8',\n      metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,\n    });\n    return (res.result && res.result[0] && res.result[0].data) || [];\n  } catch (e) {\n    console.warn('Metric query failed: ' + metricSelector, e);\n    return [];\n  }\n}\nconst sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);\nconst total = (series) => series.reduce((a, s) => a + sumVals(s), 0);\nconst round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;\nconst dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';\nconst ENTITY_TYPES = {\n  HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',\n  CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',\n  MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',\n  SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',\n  CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',\n  AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',\n};\nconst entityType = (id) => {\n  if (!id) return 'Unattributed';\n  const p = id.replace(/-[0-9A-F]{16}$/i, '');\n  return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();\n};\n\nconst POOLS = [[\"Metrics\", \"builtin:billing.ddu.metrics.total\"], [\"Log Monitoring\", \"builtin:billing.ddu.log.total\"], [\"Events\", \"builtin:billing.ddu.events.total\"], [\"Traces\", \"builtin:billing.ddu.traces.total\"], [\"Serverless\", \"builtin:billing.ddu.serverless.total\"]];\nconst byDay = {};\nfor (const [pool, key] of POOLS) {\n  for (const s of await q(key, '1d')) {\n    (s.timestamps || []).forEach((t, i) => {\n      const day = new Date(t).toISOString().slice(0, 10);\n      byDay[day] = byDay[day] || { Day: day };\n      byDay[day][pool] = round((byDay[day][pool] || 0) + (s.values[i] ?? 0));\n    });\n  }\n}\nreturn Object.values(byDay).sort((a, b) => a.Day.localeCompare(b.Day))\n  .map(r => ({ Day: r.Day, ...Object.fromEntries(POOLS.map(([p]) => [p, r[p] || 0])) }));\n",
+        "visualization": "categoricalBarChart",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "chartSettings": {
+            "truncationMode": "middle",
+            "legend": {
+              "position": "bottom"
+            },
+            "categoricalBarChartSettings": {
+              "categoryAxis": "Day",
+              "categoryAxisLabel": "Day",
+              "valueAxis": [
+                "Metrics",
+                "Log Monitoring",
+                "Events",
+                "Traces",
+                "Serverless"
+              ],
+              "valueAxisLabel": "DDU",
+              "isCategoryLabelVisible": true
+            }
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "Metrics",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            },
+            {
+              "identifier": "Log Monitoring",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            },
+            {
+              "identifier": "Events",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            },
+            {
+              "identifier": "Traces",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            },
+            {
+              "identifier": "Serverless",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            }
+          ]
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        },
+        "description": "DDU per day and pool. Look for step changes after new extensions, log sources or custom metrics."
+      },
+      "11": {
+        "type": "code",
+        "title": "Daily estimated DEM (RUM vs Synthetic)",
+        "input": "import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';\n\n// ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----\nconst TF_FROM = \"$dt_timeframe_from\";\nconst TF_TO = \"$dt_timeframe_to\";\nconst UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };\nfunction toMs(expr, fallback) {\n  if (!expr || expr.startsWith('$')) return fallback;\n  const iso = Date.parse(expr);\n  if (!isNaN(iso)) return iso;\n  const m = expr.replace(/\\s/g, '').match(/^now(?:\\(\\))?(?:([-+])(\\d+)([smhdwMy]))?(?:@\\w+)?$/);\n  if (!m) return fallback;\n  return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();\n}\nconst TO = toMs(TF_TO, Date.now());\nconst FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);\n\n// ---- DEM unit weights (classic DEM rate card) - align with your contract ----\nconst DEM_WEIGHTS = {\n  webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,\n  mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,\n  customSession: 0.25, customUserActionProperty: 0.01,\n  browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,\n};\n\n// ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----\nasync function q(metricSelector, resolution = 'Inf', extra = {}) {\n  try {\n    const res = await metricsClient.query({\n      acceptType: 'application/json; charset=utf-8',\n      metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,\n    });\n    return (res.result && res.result[0] && res.result[0].data) || [];\n  } catch (e) {\n    console.warn('Metric query failed: ' + metricSelector, e);\n    return [];\n  }\n}\nconst sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);\nconst total = (series) => series.reduce((a, s) => a + sumVals(s), 0);\nconst round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;\nconst dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';\nconst ENTITY_TYPES = {\n  HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',\n  CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',\n  MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',\n  SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',\n  CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',\n  AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',\n};\nconst entityType = (id) => {\n  if (!id) return 'Unattributed';\n  const p = id.replace(/-[0-9A-F]{16}$/i, '');\n  return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();\n};\n\nconst DEM_PARTS = [\n  ['Web sessions', 'builtin:billing.apps.web.sessionsWithoutReplayByApplication', DEM_WEIGHTS.webSession],\n  ['Web sessions with replay', 'builtin:billing.apps.web.sessionsWithReplayByApplication', DEM_WEIGHTS.webSessionReplay],\n  ['Web user action properties', 'builtin:billing.apps.web.userActionPropertiesByApplication', DEM_WEIGHTS.webUserActionProperty],\n  ['Mobile sessions', 'builtin:billing.apps.mobile.sessionsWithoutReplayByApplication', DEM_WEIGHTS.mobileSession],\n  ['Mobile sessions with replay', 'builtin:billing.apps.mobile.sessionsWithReplayByApplication', DEM_WEIGHTS.mobileSessionReplay],\n  ['Mobile user action properties', 'builtin:billing.apps.mobile.userActionPropertiesByMobileApplication', DEM_WEIGHTS.mobileUserActionProperty],\n  ['Custom app sessions', 'builtin:billing.apps.custom.sessionsWithoutReplayByApplication', DEM_WEIGHTS.customSession],\n  ['Custom app user action properties', 'builtin:billing.apps.custom.userActionPropertiesByDeviceApplication', DEM_WEIGHTS.customUserActionProperty],\n  ['Browser monitor actions', 'builtin:billing.synthetic.actions', DEM_WEIGHTS.browserAction],\n  ['HTTP monitor requests', 'builtin:billing.synthetic.requests', DEM_WEIGHTS.httpRequest],\n  ['Third-party synthetic results', 'builtin:billing.synthetic.external', DEM_WEIGHTS.thirdPartyResult],\n];\nconst byDay = {};\nfor (const [capability, key, w] of DEM_PARTS) {\n  const group = /monitor|synthetic/i.test(capability) ? 'Synthetic' : (/replay/i.test(capability) ? 'Session Replay' : 'RUM');\n  for (const s of await q(key, '1d')) {\n    (s.timestamps || []).forEach((t, i) => {\n      const day = new Date(t).toISOString().slice(0, 10);\n      byDay[day] = byDay[day] || { Day: day, RUM: 0, 'Session Replay': 0, Synthetic: 0 };\n      byDay[day][group] = round(byDay[day][group] + (s.values[i] ?? 0) * w);\n    });\n  }\n}\nreturn Object.values(byDay).sort((a, b) => a.Day.localeCompare(b.Day));\n",
+        "visualization": "categoricalBarChart",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "chartSettings": {
+            "truncationMode": "middle",
+            "legend": {
+              "position": "bottom"
+            },
+            "categoricalBarChartSettings": {
+              "categoryAxis": "Day",
+              "categoryAxisLabel": "Day",
+              "valueAxis": [
+                "RUM",
+                "Session Replay",
+                "Synthetic"
+              ],
+              "valueAxisLabel": "DEM",
+              "isCategoryLabelVisible": true
+            }
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "RUM",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            },
+            {
+              "identifier": "Session Replay",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            },
+            {
+              "identifier": "Synthetic",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            }
+          ]
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        },
+        "description": "Estimated DEM per day split into RUM sessions/properties, Session Replay sessions and synthetic executions."
+      },
+      "12": {
+        "type": "markdown",
+        "content": "## 🧩 DDU breakdown — where metric DDU comes from"
+      },
+      "13": {
+        "type": "code",
+        "title": "Metric DDU by entity type",
+        "input": "import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';\n\n// ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----\nconst TF_FROM = \"$dt_timeframe_from\";\nconst TF_TO = \"$dt_timeframe_to\";\nconst UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };\nfunction toMs(expr, fallback) {\n  if (!expr || expr.startsWith('$')) return fallback;\n  const iso = Date.parse(expr);\n  if (!isNaN(iso)) return iso;\n  const m = expr.replace(/\\s/g, '').match(/^now(?:\\(\\))?(?:([-+])(\\d+)([smhdwMy]))?(?:@\\w+)?$/);\n  if (!m) return fallback;\n  return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();\n}\nconst TO = toMs(TF_TO, Date.now());\nconst FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);\n\n// ---- DEM unit weights (classic DEM rate card) - align with your contract ----\nconst DEM_WEIGHTS = {\n  webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,\n  mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,\n  customSession: 0.25, customUserActionProperty: 0.01,\n  browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,\n};\n\n// ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----\nasync function q(metricSelector, resolution = 'Inf', extra = {}) {\n  try {\n    const res = await metricsClient.query({\n      acceptType: 'application/json; charset=utf-8',\n      metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,\n    });\n    return (res.result && res.result[0] && res.result[0].data) || [];\n  } catch (e) {\n    console.warn('Metric query failed: ' + metricSelector, e);\n    return [];\n  }\n}\nconst sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);\nconst total = (series) => series.reduce((a, s) => a + sumVals(s), 0);\nconst round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;\nconst dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';\nconst ENTITY_TYPES = {\n  HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',\n  CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',\n  MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',\n  SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',\n  CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',\n  AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',\n};\nconst entityType = (id) => {\n  if (!id) return 'Unattributed';\n  const p = id.replace(/-[0-9A-F]{16}$/i, '');\n  return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();\n};\n\nconst series = await q('builtin:billing.ddu.metrics.byEntity:splitBy(\"dt.entity.monitored_entity\")');\nconst byType = {};\nfor (const s of series) {\n  const t = entityType(dimVal(s, 'dt.entity.monitored_entity'));\n  byType[t] = (byType[t] || 0) + sumVals(s);\n}\nreturn Object.entries(byType).map(([t, v]) => ({ \"Entity type\": t, DDU: round(v) }))\n  .sort((a, b) => b.DDU - a.DDU).slice(0, 15);\n",
+        "visualization": "categoricalBarChart",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "chartSettings": {
+            "truncationMode": "middle",
+            "legend": {
+              "position": "bottom"
+            },
+            "categoricalBarChartSettings": {
+              "categoryAxis": "Entity type",
+              "categoryAxisLabel": "Entity type",
+              "valueAxis": [
+                "DDU"
+              ],
+              "valueAxisLabel": "DDU",
+              "isCategoryLabelVisible": true
+            }
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "DDU",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            }
+          ]
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        },
+        "description": "Metric DDU grouped by the type of monitored entity it is attributed to (hosts, custom devices, services, …)."
+      },
+      "14": {
+        "type": "code",
+        "title": "Top 25 entities by metric DDU",
+        "input": "import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';\n\n// ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----\nconst TF_FROM = \"$dt_timeframe_from\";\nconst TF_TO = \"$dt_timeframe_to\";\nconst UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };\nfunction toMs(expr, fallback) {\n  if (!expr || expr.startsWith('$')) return fallback;\n  const iso = Date.parse(expr);\n  if (!isNaN(iso)) return iso;\n  const m = expr.replace(/\\s/g, '').match(/^now(?:\\(\\))?(?:([-+])(\\d+)([smhdwMy]))?(?:@\\w+)?$/);\n  if (!m) return fallback;\n  return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();\n}\nconst TO = toMs(TF_TO, Date.now());\nconst FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);\n\n// ---- DEM unit weights (classic DEM rate card) - align with your contract ----\nconst DEM_WEIGHTS = {\n  webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,\n  mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,\n  customSession: 0.25, customUserActionProperty: 0.01,\n  browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,\n};\n\n// ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----\nasync function q(metricSelector, resolution = 'Inf', extra = {}) {\n  try {\n    const res = await metricsClient.query({\n      acceptType: 'application/json; charset=utf-8',\n      metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,\n    });\n    return (res.result && res.result[0] && res.result[0].data) || [];\n  } catch (e) {\n    console.warn('Metric query failed: ' + metricSelector, e);\n    return [];\n  }\n}\nconst sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);\nconst total = (series) => series.reduce((a, s) => a + sumVals(s), 0);\nconst round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;\nconst dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';\nconst ENTITY_TYPES = {\n  HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',\n  CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',\n  MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',\n  SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',\n  CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',\n  AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',\n};\nconst entityType = (id) => {\n  if (!id) return 'Unattributed';\n  const p = id.replace(/-[0-9A-F]{16}$/i, '');\n  return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();\n};\n\nconst series = await q('builtin:billing.ddu.metrics.byEntity:splitBy(\"dt.entity.monitored_entity\"):names:sort(value(sum,descending)):limit(25)');\nconst all = total(await q('builtin:billing.ddu.metrics.total'));\nreturn series.map(s => {\n  const id = dimVal(s, 'dt.entity.monitored_entity');\n  const ddu = sumVals(s);\n  return { Entity: dimVal(s, 'dt.entity.monitored_entity.name') || id || 'Unattributed', Type: entityType(id), \"Entity ID\": id,\n           DDU: round(ddu), \"Share\": all ? round(ddu / all * 100, 1) : 0 };\n}).sort((a, b) => b.DDU - a.DDU);\n",
+        "visualization": "table",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "table": {
+            "rowDensity": "condensed",
+            "enableSparklines": false,
+            "hiddenColumns": [],
+            "lineWrapIds": [],
+            "columnWidths": {}
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "DDU",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            },
+            {
+              "identifier": "Share",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 1,
+              "suffix": " %",
+              "delimiter": true
+            }
+          ]
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        },
+        "description": "The individual hosts, custom devices, services etc. that consume the most metric DDU."
+      },
+      "15": {
+        "type": "code",
+        "title": "Top 25 metric keys by DDU",
+        "input": "import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';\n\n// ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----\nconst TF_FROM = \"$dt_timeframe_from\";\nconst TF_TO = \"$dt_timeframe_to\";\nconst UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };\nfunction toMs(expr, fallback) {\n  if (!expr || expr.startsWith('$')) return fallback;\n  const iso = Date.parse(expr);\n  if (!isNaN(iso)) return iso;\n  const m = expr.replace(/\\s/g, '').match(/^now(?:\\(\\))?(?:([-+])(\\d+)([smhdwMy]))?(?:@\\w+)?$/);\n  if (!m) return fallback;\n  return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();\n}\nconst TO = toMs(TF_TO, Date.now());\nconst FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);\n\n// ---- DEM unit weights (classic DEM rate card) - align with your contract ----\nconst DEM_WEIGHTS = {\n  webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,\n  mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,\n  customSession: 0.25, customUserActionProperty: 0.01,\n  browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,\n};\n\n// ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----\nasync function q(metricSelector, resolution = 'Inf', extra = {}) {\n  try {\n    const res = await metricsClient.query({\n      acceptType: 'application/json; charset=utf-8',\n      metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,\n    });\n    return (res.result && res.result[0] && res.result[0].data) || [];\n  } catch (e) {\n    console.warn('Metric query failed: ' + metricSelector, e);\n    return [];\n  }\n}\nconst sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);\nconst total = (series) => series.reduce((a, s) => a + sumVals(s), 0);\nconst round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;\nconst dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';\nconst ENTITY_TYPES = {\n  HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',\n  CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',\n  MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',\n  SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',\n  CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',\n  AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',\n};\nconst entityType = (id) => {\n  if (!id) return 'Unattributed';\n  const p = id.replace(/-[0-9A-F]{16}$/i, '');\n  return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();\n};\n\nconst series = await q('builtin:billing.ddu.metrics.byMetric:splitBy(\"metric_key\"):sort(value(sum,descending)):limit(25)');\nconst all = total(await q('builtin:billing.ddu.metrics.total'));\nreturn series.map(s => {\n  const key = dimVal(s, 'metric_key') || Object.values(s.dimensionMap || {})[0] || 'unknown';\n  const ddu = sumVals(s);\n  const source = key.startsWith('builtin:') ? 'Built-in' : key.startsWith('calc:') ? 'Calculated' :\n    key.startsWith('ext:') || key.startsWith('com.dynatrace.extension') ? 'Extension' : 'Custom / ingested';\n  return { \"Metric key\": key, Source: source, DDU: round(ddu), \"Share\": all ? round(ddu / all * 100, 1) : 0 };\n}).sort((a, b) => b.DDU - a.DDU);\n",
+        "visualization": "table",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "table": {
+            "rowDensity": "condensed",
+            "enableSparklines": false,
+            "hiddenColumns": [],
+            "lineWrapIds": [],
+            "columnWidths": {}
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "DDU",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            },
+            {
+              "identifier": "Share",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 1,
+              "suffix": " %",
+              "delimiter": true
+            }
+          ]
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        },
+        "description": "Metrics that drive DDU. Calculated (calc:), extension and ingested custom metrics are typical optimisation targets."
+      },
+      "16": {
+        "type": "code",
+        "title": "Hosts: metric DDU vs included allowance",
+        "input": "import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';\n\n// ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----\nconst TF_FROM = \"$dt_timeframe_from\";\nconst TF_TO = \"$dt_timeframe_to\";\nconst UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };\nfunction toMs(expr, fallback) {\n  if (!expr || expr.startsWith('$')) return fallback;\n  const iso = Date.parse(expr);\n  if (!isNaN(iso)) return iso;\n  const m = expr.replace(/\\s/g, '').match(/^now(?:\\(\\))?(?:([-+])(\\d+)([smhdwMy]))?(?:@\\w+)?$/);\n  if (!m) return fallback;\n  return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();\n}\nconst TO = toMs(TF_TO, Date.now());\nconst FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);\n\n// ---- DEM unit weights (classic DEM rate card) - align with your contract ----\nconst DEM_WEIGHTS = {\n  webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,\n  mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,\n  customSession: 0.25, customUserActionProperty: 0.01,\n  browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,\n};\n\n// ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----\nasync function q(metricSelector, resolution = 'Inf', extra = {}) {\n  try {\n    const res = await metricsClient.query({\n      acceptType: 'application/json; charset=utf-8',\n      metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,\n    });\n    return (res.result && res.result[0] && res.result[0].data) || [];\n  } catch (e) {\n    console.warn('Metric query failed: ' + metricSelector, e);\n    return [];\n  }\n}\nconst sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);\nconst total = (series) => series.reduce((a, s) => a + sumVals(s), 0);\nconst round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;\nconst dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';\nconst ENTITY_TYPES = {\n  HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',\n  CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',\n  MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',\n  SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',\n  CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',\n  AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',\n};\nconst entityType = (id) => {\n  if (!id) return 'Unattributed';\n  const p = id.replace(/-[0-9A-F]{16}$/i, '');\n  return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();\n};\n\nconst used = await q('builtin:billing.ddu.metrics.byEntity:filter(in(\"dt.entity.monitored_entity\",entitySelector(\"type(HOST)\"))):splitBy(\"dt.entity.monitored_entity\"):names:sort(value(sum,descending)):limit(100)');\nconst incl = await q('builtin:billing.ddu.includedMetricPerHost:splitBy(\"dt.entity.host\"):names');\nconst rows = {};\nfor (const s of used) {\n  const id = dimVal(s, 'dt.entity.monitored_entity');\n  rows[id] = { Host: dimVal(s, 'dt.entity.monitored_entity.name') || id, \"Host ID\": id, \"Metric DDU\": sumVals(s), \"Included DDU\": 0 };\n}\nfor (const s of incl) {\n  const id = dimVal(s, 'dt.entity.host');\n  rows[id] = rows[id] || { Host: dimVal(s, 'dt.entity.host.name') || id, \"Host ID\": id, \"Metric DDU\": 0, \"Included DDU\": 0 };\n  rows[id][\"Included DDU\"] += sumVals(s);\n}\nreturn Object.values(rows).map(r => ({\n  Host: r.Host, \"Host ID\": r[\"Host ID\"], \"Metric DDU\": round(r[\"Metric DDU\"]), \"Included DDU\": round(r[\"Included DDU\"]),\n  \"Above included\": round(Math.max(0, r[\"Metric DDU\"] - r[\"Included DDU\"])),\n})).sort((a, b) => b[\"Metric DDU\"] - a[\"Metric DDU\"]).slice(0, 50);\n",
+        "visualization": "table",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "table": {
+            "rowDensity": "condensed",
+            "enableSparklines": false,
+            "hiddenColumns": [],
+            "lineWrapIds": [],
+            "columnWidths": {}
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "Metric DDU",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            },
+            {
+              "identifier": "Included DDU",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            },
+            {
+              "identifier": "Above included",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            }
+          ]
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        },
+        "description": "Metric DDU attributed to each host compared with the DDU included per host (host units). The included allowance is pooled across the environment, so 'Above included' is an indicator, not a billed amount."
+      },
+      "17": {
+        "type": "markdown",
+        "content": "## 🗂️ DDU breakdown — logs, events, traces and serverless"
+      },
+      "18": {
+        "type": "code",
+        "title": "Top 25 entities by log / event / trace / serverless DDU",
+        "input": "import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';\n\n// ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----\nconst TF_FROM = \"$dt_timeframe_from\";\nconst TF_TO = \"$dt_timeframe_to\";\nconst UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };\nfunction toMs(expr, fallback) {\n  if (!expr || expr.startsWith('$')) return fallback;\n  const iso = Date.parse(expr);\n  if (!isNaN(iso)) return iso;\n  const m = expr.replace(/\\s/g, '').match(/^now(?:\\(\\))?(?:([-+])(\\d+)([smhdwMy]))?(?:@\\w+)?$/);\n  if (!m) return fallback;\n  return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();\n}\nconst TO = toMs(TF_TO, Date.now());\nconst FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);\n\n// ---- DEM unit weights (classic DEM rate card) - align with your contract ----\nconst DEM_WEIGHTS = {\n  webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,\n  mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,\n  customSession: 0.25, customUserActionProperty: 0.01,\n  browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,\n};\n\n// ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----\nasync function q(metricSelector, resolution = 'Inf', extra = {}) {\n  try {\n    const res = await metricsClient.query({\n      acceptType: 'application/json; charset=utf-8',\n      metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,\n    });\n    return (res.result && res.result[0] && res.result[0].data) || [];\n  } catch (e) {\n    console.warn('Metric query failed: ' + metricSelector, e);\n    return [];\n  }\n}\nconst sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);\nconst total = (series) => series.reduce((a, s) => a + sumVals(s), 0);\nconst round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;\nconst dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';\nconst ENTITY_TYPES = {\n  HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',\n  CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',\n  MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',\n  SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',\n  CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',\n  AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',\n};\nconst entityType = (id) => {\n  if (!id) return 'Unattributed';\n  const p = id.replace(/-[0-9A-F]{16}$/i, '');\n  return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();\n};\n\nconst OTHER_POOLS = [\n  ['Log Monitoring', 'builtin:billing.ddu.log'],\n  ['Events', 'builtin:billing.ddu.events'],\n  ['Traces', 'builtin:billing.ddu.traces'],\n  ['Serverless', 'builtin:billing.ddu.serverless'],\n];\nconst rows = [];\nfor (const [pool, base] of OTHER_POOLS) {\n  for (const s of await q(base + '.byEntity:splitBy(\"dt.entity.monitored_entity\"):names:sort(value(sum,descending)):limit(25)')) {\n    const id = dimVal(s, 'dt.entity.monitored_entity');\n    rows.push({ Pool: pool, Entity: dimVal(s, 'dt.entity.monitored_entity.name') || id || 'Unattributed', Type: entityType(id),\n                \"Entity ID\": id, DDU: round(sumVals(s)) });\n  }\n}\nreturn rows.sort((a, b) => b.DDU - a.DDU).slice(0, 25);\n",
+        "visualization": "table",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "table": {
+            "rowDensity": "condensed",
+            "enableSparklines": false,
+            "hiddenColumns": [],
+            "lineWrapIds": [],
+            "columnWidths": {}
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "DDU",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            }
+          ]
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        },
+        "description": "Hosts, process groups, Lambda functions etc. that consume the most non-metric DDU."
+      },
+      "19": {
+        "type": "code",
+        "title": "Log / event / trace / serverless DDU by source",
+        "input": "import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';\n\n// ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----\nconst TF_FROM = \"$dt_timeframe_from\";\nconst TF_TO = \"$dt_timeframe_to\";\nconst UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };\nfunction toMs(expr, fallback) {\n  if (!expr || expr.startsWith('$')) return fallback;\n  const iso = Date.parse(expr);\n  if (!isNaN(iso)) return iso;\n  const m = expr.replace(/\\s/g, '').match(/^now(?:\\(\\))?(?:([-+])(\\d+)([smhdwMy]))?(?:@\\w+)?$/);\n  if (!m) return fallback;\n  return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();\n}\nconst TO = toMs(TF_TO, Date.now());\nconst FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);\n\n// ---- DEM unit weights (classic DEM rate card) - align with your contract ----\nconst DEM_WEIGHTS = {\n  webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,\n  mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,\n  customSession: 0.25, customUserActionProperty: 0.01,\n  browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,\n};\n\n// ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----\nasync function q(metricSelector, resolution = 'Inf', extra = {}) {\n  try {\n    const res = await metricsClient.query({\n      acceptType: 'application/json; charset=utf-8',\n      metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,\n    });\n    return (res.result && res.result[0] && res.result[0].data) || [];\n  } catch (e) {\n    console.warn('Metric query failed: ' + metricSelector, e);\n    return [];\n  }\n}\nconst sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);\nconst total = (series) => series.reduce((a, s) => a + sumVals(s), 0);\nconst round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;\nconst dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';\nconst ENTITY_TYPES = {\n  HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',\n  CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',\n  MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',\n  SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',\n  CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',\n  AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',\n};\nconst entityType = (id) => {\n  if (!id) return 'Unattributed';\n  const p = id.replace(/-[0-9A-F]{16}$/i, '');\n  return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();\n};\n\nconst OTHER_POOLS = [\n  ['Log Monitoring', 'builtin:billing.ddu.log'],\n  ['Events', 'builtin:billing.ddu.events'],\n  ['Traces', 'builtin:billing.ddu.traces'],\n  ['Serverless', 'builtin:billing.ddu.serverless'],\n];\nconst rows = [];\nfor (const [pool, base] of OTHER_POOLS) {\n  // keep every dimension the metric exposes (e.g. description / source)\n  for (const s of await q(base + '.byDescription:sort(value(sum,descending)):limit(25)')) {\n    const desc = Object.entries(s.dimensionMap || {}).map(([, v]) => v).filter(Boolean).join(' · ') || pool;\n    rows.push({ Pool: pool, Source: desc, DDU: round(sumVals(s)) });\n  }\n}\nreturn rows.filter(r => r.DDU > 0).sort((a, b) => b.DDU - a.DDU).slice(0, 30);\n",
+        "visualization": "table",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "table": {
+            "rowDensity": "condensed",
+            "enableSparklines": false,
+            "hiddenColumns": [],
+            "lineWrapIds": [],
+            "columnWidths": {}
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "DDU",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            }
+          ]
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        },
+        "description": "Non-metric DDU by source description, e.g. log ingest vs. log storage, ingested vs. built-in events, ingested spans."
+      },
+      "20": {
+        "type": "markdown",
+        "content": "## 🌐 DEM breakdown — applications and synthetic monitors"
+      },
+      "21": {
+        "type": "code",
+        "title": "Estimated DEM by application",
+        "input": "import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';\n\n// ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----\nconst TF_FROM = \"$dt_timeframe_from\";\nconst TF_TO = \"$dt_timeframe_to\";\nconst UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };\nfunction toMs(expr, fallback) {\n  if (!expr || expr.startsWith('$')) return fallback;\n  const iso = Date.parse(expr);\n  if (!isNaN(iso)) return iso;\n  const m = expr.replace(/\\s/g, '').match(/^now(?:\\(\\))?(?:([-+])(\\d+)([smhdwMy]))?(?:@\\w+)?$/);\n  if (!m) return fallback;\n  return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();\n}\nconst TO = toMs(TF_TO, Date.now());\nconst FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);\n\n// ---- DEM unit weights (classic DEM rate card) - align with your contract ----\nconst DEM_WEIGHTS = {\n  webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,\n  mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,\n  customSession: 0.25, customUserActionProperty: 0.01,\n  browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,\n};\n\n// ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----\nasync function q(metricSelector, resolution = 'Inf', extra = {}) {\n  try {\n    const res = await metricsClient.query({\n      acceptType: 'application/json; charset=utf-8',\n      metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,\n    });\n    return (res.result && res.result[0] && res.result[0].data) || [];\n  } catch (e) {\n    console.warn('Metric query failed: ' + metricSelector, e);\n    return [];\n  }\n}\nconst sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);\nconst total = (series) => series.reduce((a, s) => a + sumVals(s), 0);\nconst round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;\nconst dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';\nconst ENTITY_TYPES = {\n  HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',\n  CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',\n  MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',\n  SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',\n  CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',\n  AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',\n};\nconst entityType = (id) => {\n  if (!id) return 'Unattributed';\n  const p = id.replace(/-[0-9A-F]{16}$/i, '');\n  return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();\n};\n\nconst APP_PARTS = [\n  ['Web', 'builtin:billing.apps.web.sessionsWithoutReplayByApplication', 'dt.entity.application', 'Sessions', DEM_WEIGHTS.webSession],\n  ['Web', 'builtin:billing.apps.web.sessionsWithReplayByApplication', 'dt.entity.application', 'Replay sessions', DEM_WEIGHTS.webSessionReplay],\n  ['Web', 'builtin:billing.apps.web.userActionPropertiesByApplication', 'dt.entity.application', 'Action properties', DEM_WEIGHTS.webUserActionProperty],\n  ['Mobile', 'builtin:billing.apps.mobile.sessionsWithoutReplayByApplication', 'dt.entity.device_application', 'Sessions', DEM_WEIGHTS.mobileSession],\n  ['Mobile', 'builtin:billing.apps.mobile.sessionsWithReplayByApplication', 'dt.entity.device_application', 'Replay sessions', DEM_WEIGHTS.mobileSessionReplay],\n  ['Mobile', 'builtin:billing.apps.mobile.userActionPropertiesByMobileApplication', 'dt.entity.device_application', 'Action properties', DEM_WEIGHTS.mobileUserActionProperty],\n  ['Custom', 'builtin:billing.apps.custom.sessionsWithoutReplayByApplication', 'dt.entity.custom_application', 'Sessions', DEM_WEIGHTS.customSession],\n  ['Custom', 'builtin:billing.apps.custom.userActionPropertiesByDeviceApplication', 'dt.entity.custom_application', 'Action properties', DEM_WEIGHTS.customUserActionProperty],\n];\nconst apps = {};\nfor (const [kind, key, dim, col, w] of APP_PARTS) {\n  for (const s of await q(key + ':splitBy(\"' + dim + '\"):names')) {\n    const id = dimVal(s, dim) || Object.values(s.dimensionMap || {})[0] || 'unknown';\n    const a = apps[id] = apps[id] || { Application: dimVal(s, dim + '.name') || id, Type: kind, \"App ID\": id,\n      Sessions: 0, \"Replay sessions\": 0, \"Action properties\": 0, \"Estimated DEM\": 0 };\n    const n = sumVals(s);\n    a[col] += n; a[\"Estimated DEM\"] += n * w;\n  }\n}\nconst sum = Object.values(apps).reduce((x, a) => x + a[\"Estimated DEM\"], 0);\nreturn Object.values(apps).map(a => ({ ...a, Sessions: round(a.Sessions, 0), \"Replay sessions\": round(a[\"Replay sessions\"], 0),\n  \"Action properties\": round(a[\"Action properties\"], 0), \"Estimated DEM\": round(a[\"Estimated DEM\"]),\n  \"Share\": sum ? round(a[\"Estimated DEM\"] / sum * 100, 1) : 0 }))\n  .sort((a, b) => b[\"Estimated DEM\"] - a[\"Estimated DEM\"]).slice(0, 50);\n",
+        "visualization": "table",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "table": {
+            "rowDensity": "condensed",
+            "enableSparklines": false,
+            "hiddenColumns": [],
+            "lineWrapIds": [],
+            "columnWidths": {}
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "Sessions",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            },
+            {
+              "identifier": "Replay sessions",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            },
+            {
+              "identifier": "Action properties",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            },
+            {
+              "identifier": "Estimated DEM",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            },
+            {
+              "identifier": "Share",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 1,
+              "suffix": " %",
+              "delimiter": true
+            }
+          ]
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        },
+        "description": "Web, mobile and custom applications (by domain / URL as named in RUM) ranked by estimated DEM."
+      },
+      "22": {
+        "type": "code",
+        "title": "Top applications by estimated DEM",
+        "input": "import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';\n\n// ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----\nconst TF_FROM = \"$dt_timeframe_from\";\nconst TF_TO = \"$dt_timeframe_to\";\nconst UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };\nfunction toMs(expr, fallback) {\n  if (!expr || expr.startsWith('$')) return fallback;\n  const iso = Date.parse(expr);\n  if (!isNaN(iso)) return iso;\n  const m = expr.replace(/\\s/g, '').match(/^now(?:\\(\\))?(?:([-+])(\\d+)([smhdwMy]))?(?:@\\w+)?$/);\n  if (!m) return fallback;\n  return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();\n}\nconst TO = toMs(TF_TO, Date.now());\nconst FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);\n\n// ---- DEM unit weights (classic DEM rate card) - align with your contract ----\nconst DEM_WEIGHTS = {\n  webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,\n  mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,\n  customSession: 0.25, customUserActionProperty: 0.01,\n  browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,\n};\n\n// ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----\nasync function q(metricSelector, resolution = 'Inf', extra = {}) {\n  try {\n    const res = await metricsClient.query({\n      acceptType: 'application/json; charset=utf-8',\n      metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,\n    });\n    return (res.result && res.result[0] && res.result[0].data) || [];\n  } catch (e) {\n    console.warn('Metric query failed: ' + metricSelector, e);\n    return [];\n  }\n}\nconst sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);\nconst total = (series) => series.reduce((a, s) => a + sumVals(s), 0);\nconst round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;\nconst dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';\nconst ENTITY_TYPES = {\n  HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',\n  CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',\n  MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',\n  SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',\n  CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',\n  AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',\n};\nconst entityType = (id) => {\n  if (!id) return 'Unattributed';\n  const p = id.replace(/-[0-9A-F]{16}$/i, '');\n  return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();\n};\n\nconst APP_PARTS = [\n  ['builtin:billing.apps.web.sessionsWithoutReplayByApplication', 'dt.entity.application', DEM_WEIGHTS.webSession],\n  ['builtin:billing.apps.web.sessionsWithReplayByApplication', 'dt.entity.application', DEM_WEIGHTS.webSessionReplay],\n  ['builtin:billing.apps.web.userActionPropertiesByApplication', 'dt.entity.application', DEM_WEIGHTS.webUserActionProperty],\n  ['builtin:billing.apps.mobile.sessionsWithoutReplayByApplication', 'dt.entity.device_application', DEM_WEIGHTS.mobileSession],\n  ['builtin:billing.apps.mobile.sessionsWithReplayByApplication', 'dt.entity.device_application', DEM_WEIGHTS.mobileSessionReplay],\n  ['builtin:billing.apps.mobile.userActionPropertiesByMobileApplication', 'dt.entity.device_application', DEM_WEIGHTS.mobileUserActionProperty],\n  ['builtin:billing.apps.custom.sessionsWithoutReplayByApplication', 'dt.entity.custom_application', DEM_WEIGHTS.customSession],\n  ['builtin:billing.apps.custom.userActionPropertiesByDeviceApplication', 'dt.entity.custom_application', DEM_WEIGHTS.customUserActionProperty],\n];\nconst apps = {};\nfor (const [key, dim, w] of APP_PARTS) {\n  for (const s of await q(key + ':splitBy(\"' + dim + '\"):names')) {\n    const name = dimVal(s, dim + '.name') || dimVal(s, dim) || Object.values(s.dimensionMap || {})[0] || 'unknown';\n    apps[name] = (apps[name] || 0) + sumVals(s) * w;\n  }\n}\nreturn Object.entries(apps).map(([Application, d]) => ({ Application, DEM: round(d) }))\n  .sort((a, b) => b.DEM - a.DEM).slice(0, 10);\n",
+        "visualization": "categoricalBarChart",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "chartSettings": {
+            "truncationMode": "middle",
+            "legend": {
+              "position": "bottom"
+            },
+            "categoricalBarChartSettings": {
+              "categoryAxis": "Application",
+              "categoryAxisLabel": "Application",
+              "valueAxis": [
+                "DEM"
+              ],
+              "valueAxisLabel": "DEM",
+              "isCategoryLabelVisible": true
+            }
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "DEM",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            }
+          ]
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        },
+        "description": "Top 10 applications by estimated DEM."
+      },
+      "23": {
+        "type": "code",
+        "title": "Synthetic monitors by estimated DEM",
+        "input": "import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';\n\n// ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----\nconst TF_FROM = \"$dt_timeframe_from\";\nconst TF_TO = \"$dt_timeframe_to\";\nconst UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };\nfunction toMs(expr, fallback) {\n  if (!expr || expr.startsWith('$')) return fallback;\n  const iso = Date.parse(expr);\n  if (!isNaN(iso)) return iso;\n  const m = expr.replace(/\\s/g, '').match(/^now(?:\\(\\))?(?:([-+])(\\d+)([smhdwMy]))?(?:@\\w+)?$/);\n  if (!m) return fallback;\n  return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();\n}\nconst TO = toMs(TF_TO, Date.now());\nconst FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);\n\n// ---- DEM unit weights (classic DEM rate card) - align with your contract ----\nconst DEM_WEIGHTS = {\n  webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,\n  mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,\n  customSession: 0.25, customUserActionProperty: 0.01,\n  browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,\n};\n\n// ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----\nasync function q(metricSelector, resolution = 'Inf', extra = {}) {\n  try {\n    const res = await metricsClient.query({\n      acceptType: 'application/json; charset=utf-8',\n      metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,\n    });\n    return (res.result && res.result[0] && res.result[0].data) || [];\n  } catch (e) {\n    console.warn('Metric query failed: ' + metricSelector, e);\n    return [];\n  }\n}\nconst sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);\nconst total = (series) => series.reduce((a, s) => a + sumVals(s), 0);\nconst round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;\nconst dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';\nconst ENTITY_TYPES = {\n  HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',\n  CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',\n  MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',\n  SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',\n  CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',\n  AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',\n};\nconst entityType = (id) => {\n  if (!id) return 'Unattributed';\n  const p = id.replace(/-[0-9A-F]{16}$/i, '');\n  return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();\n};\n\nconst SYN = [\n  ['Browser monitor', 'builtin:billing.synthetic.actions', 'dt.entity.synthetic_test', 'Actions', DEM_WEIGHTS.browserAction],\n  ['HTTP monitor', 'builtin:billing.synthetic.requests', 'dt.entity.http_check', 'Requests', DEM_WEIGHTS.httpRequest],\n  ['Third-party monitor', 'builtin:billing.synthetic.external', 'dt.entity.external_synthetic_test', 'Results', DEM_WEIGHTS.thirdPartyResult],\n];\nconst rows = [];\nfor (const [kind, key, dim, unit, w] of SYN) {\n  for (const s of await q(key + ':splitBy(\"' + dim + '\"):names:sort(value(sum,descending)):limit(50)')) {\n    const id = dimVal(s, dim) || Object.values(s.dimensionMap || {})[0] || 'unknown';\n    const n = sumVals(s);\n    rows.push({ Monitor: dimVal(s, dim + '.name') || id, Type: kind, \"Monitor ID\": id, \"Billed executions\": round(n, 0),\n                Unit: unit, \"Estimated DEM\": round(n * w) });\n  }\n}\nconst sum = rows.reduce((x, r) => x + r[\"Estimated DEM\"], 0);\nreturn rows.map(r => ({ ...r, \"Share\": sum ? round(r[\"Estimated DEM\"] / sum * 100, 1) : 0 }))\n  .sort((a, b) => b[\"Estimated DEM\"] - a[\"Estimated DEM\"]).slice(0, 50);\n",
+        "visualization": "table",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "table": {
+            "rowDensity": "condensed",
+            "enableSparklines": false,
+            "hiddenColumns": [],
+            "lineWrapIds": [],
+            "columnWidths": {}
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "Billed executions",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            },
+            {
+              "identifier": "Estimated DEM",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            },
+            {
+              "identifier": "Share",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 1,
+              "suffix": " %",
+              "delimiter": true
+            }
+          ]
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        },
+        "description": "Browser (clickpath) actions, HTTP monitor requests and third-party results per monitor. Reduce frequency or locations on the top rows to save DEM."
+      },
+      "24": {
+        "type": "markdown",
+        "content": "## ✅ Porting check — billing metrics available in this environment"
+      },
+      "25": {
+        "type": "code",
+        "title": "Billing metric availability",
+        "input": "import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';\n\n// ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----\nconst TF_FROM = \"$dt_timeframe_from\";\nconst TF_TO = \"$dt_timeframe_to\";\nconst UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };\nfunction toMs(expr, fallback) {\n  if (!expr || expr.startsWith('$')) return fallback;\n  const iso = Date.parse(expr);\n  if (!isNaN(iso)) return iso;\n  const m = expr.replace(/\\s/g, '').match(/^now(?:\\(\\))?(?:([-+])(\\d+)([smhdwMy]))?(?:@\\w+)?$/);\n  if (!m) return fallback;\n  return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();\n}\nconst TO = toMs(TF_TO, Date.now());\nconst FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);\n\n// ---- DEM unit weights (classic DEM rate card) - align with your contract ----\nconst DEM_WEIGHTS = {\n  webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,\n  mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,\n  customSession: 0.25, customUserActionProperty: 0.01,\n  browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,\n};\n\n// ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----\nasync function q(metricSelector, resolution = 'Inf', extra = {}) {\n  try {\n    const res = await metricsClient.query({\n      acceptType: 'application/json; charset=utf-8',\n      metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,\n    });\n    return (res.result && res.result[0] && res.result[0].data) || [];\n  } catch (e) {\n    console.warn('Metric query failed: ' + metricSelector, e);\n    return [];\n  }\n}\nconst sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);\nconst total = (series) => series.reduce((a, s) => a + sumVals(s), 0);\nconst round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;\nconst dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';\nconst ENTITY_TYPES = {\n  HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',\n  CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',\n  MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',\n  SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',\n  CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',\n  AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',\n};\nconst entityType = (id) => {\n  if (!id) return 'Unattributed';\n  const p = id.replace(/-[0-9A-F]{16}$/i, '');\n  return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();\n};\n\nconst KEYS = [\n  'builtin:billing.ddu.metrics.total', 'builtin:billing.ddu.metrics.byEntity', 'builtin:billing.ddu.metrics.byMetric',\n  'builtin:billing.ddu.includedMetricPerHost',\n  'builtin:billing.ddu.log.total', 'builtin:billing.ddu.log.byEntity', 'builtin:billing.ddu.log.byDescription',\n  'builtin:billing.ddu.events.total', 'builtin:billing.ddu.events.byEntity', 'builtin:billing.ddu.events.byDescription',\n  'builtin:billing.ddu.traces.total', 'builtin:billing.ddu.traces.byEntity', 'builtin:billing.ddu.traces.byDescription',\n  'builtin:billing.ddu.serverless.total', 'builtin:billing.ddu.serverless.byEntity', 'builtin:billing.ddu.serverless.byDescription',\n  'builtin:billing.apps.web.sessionsWithoutReplayByApplication', 'builtin:billing.apps.web.sessionsWithReplayByApplication',\n  'builtin:billing.apps.web.userActionPropertiesByApplication',\n  'builtin:billing.apps.mobile.sessionsWithoutReplayByApplication', 'builtin:billing.apps.mobile.sessionsWithReplayByApplication',\n  'builtin:billing.apps.mobile.userActionPropertiesByMobileApplication',\n  'builtin:billing.apps.custom.sessionsWithoutReplayByApplication', 'builtin:billing.apps.custom.userActionPropertiesByDeviceApplication',\n  'builtin:billing.synthetic.actions', 'builtin:billing.synthetic.requests', 'builtin:billing.synthetic.external',\n];\nconst rows = [];\nfor (const key of KEYS) {\n  let status = 'OK', series = 0, value = 0;\n  try {\n    const res = await metricsClient.query({ acceptType: 'application/json; charset=utf-8', metricSelector: key + ':splitBy()',\n      resolution: 'Inf', from: String(FROM), to: String(TO) });\n    const data = (res.result && res.result[0] && res.result[0].data) || [];\n    series = data.length; value = total(data);\n    if (!series || !value) status = 'No data in timeframe';\n  } catch (e) {\n    status = 'Not available: ' + ((e && (e.body?.error?.message || e.message)) || 'error');\n  }\n  rows.push({ \"Metric key\": key, Status: status, \"Total in timeframe\": round(value) });\n}\nreturn rows;\n",
+        "visualization": "table",
+        "visualizationSettings": {
+          "autoSelectVisualization": false,
+          "table": {
+            "rowDensity": "condensed",
+            "enableSparklines": false,
+            "hiddenColumns": [],
+            "lineWrapIds": [],
+            "columnWidths": {}
+          },
+          "unitsOverrides": [
+            {
+              "identifier": "Total in timeframe",
+              "unitCategory": "unspecified",
+              "baseUnit": "count",
+              "displayUnit": null,
+              "decimals": 2,
+              "suffix": "",
+              "delimiter": true
+            }
+          ]
+        },
+        "davis": {
+          "enabled": false,
+          "davisVisualization": {
+            "isAvailable": true
+          }
+        },
+        "description": "Checks each billing metric this dashboard uses. After importing into another environment, every row should be OK; 'No data' on a DEM row is expected if that capability (e.g. mobile, Session Replay) is not used."
+      },
+      "26": {
+        "type": "markdown",
+        "content": "**Classic DEM weights used for estimates** — web/mobile/custom session **0.25** · session with Session Replay **1.0** ·\nuser action property **0.01** · browser monitor action **1.0** · HTTP monitor request **0.1** · third-party result **0.1**.\nAdjust `DEM_WEIGHTS` in the tiles if your contract differs. Source: `dashboards/dynatrace-license-consumption/` in the Isatec-RHA-SaaS repo."
+      }
+    },
+    "layouts": {
+      "0": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 4
+      },
+      "1": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 1
+      },
+      "2": {
+        "x": 0,
+        "y": 5,
+        "w": 6,
+        "h": 4
+      },
+      "3": {
+        "x": 6,
+        "y": 5,
+        "w": 6,
+        "h": 4
+      },
+      "4": {
+        "x": 12,
+        "y": 5,
+        "w": 6,
+        "h": 4
+      },
+      "5": {
+        "x": 18,
+        "y": 5,
+        "w": 6,
+        "h": 4
+      },
+      "6": {
+        "x": 0,
+        "y": 9,
+        "w": 8,
+        "h": 7
+      },
+      "7": {
+        "x": 8,
+        "y": 9,
+        "w": 8,
+        "h": 7
+      },
+      "8": {
+        "x": 16,
+        "y": 9,
+        "w": 8,
+        "h": 7
+      },
+      "9": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 1
+      },
+      "10": {
+        "x": 0,
+        "y": 17,
+        "w": 12,
+        "h": 7
+      },
+      "11": {
+        "x": 12,
+        "y": 17,
+        "w": 12,
+        "h": 7
+      },
+      "12": {
+        "x": 0,
+        "y": 24,
+        "w": 24,
+        "h": 1
+      },
+      "13": {
+        "x": 0,
+        "y": 25,
+        "w": 8,
+        "h": 8
+      },
+      "14": {
+        "x": 8,
+        "y": 25,
+        "w": 16,
+        "h": 8
+      },
+      "15": {
+        "x": 0,
+        "y": 33,
+        "w": 12,
+        "h": 9
+      },
+      "16": {
+        "x": 12,
+        "y": 33,
+        "w": 12,
+        "h": 9
+      },
+      "17": {
+        "x": 0,
+        "y": 42,
+        "w": 24,
+        "h": 1
+      },
+      "18": {
+        "x": 0,
+        "y": 43,
+        "w": 12,
+        "h": 9
+      },
+      "19": {
+        "x": 12,
+        "y": 43,
+        "w": 12,
+        "h": 9
+      },
+      "20": {
+        "x": 0,
+        "y": 52,
+        "w": 24,
+        "h": 1
+      },
+      "21": {
+        "x": 0,
+        "y": 53,
+        "w": 14,
+        "h": 9
+      },
+      "22": {
+        "x": 14,
+        "y": 53,
+        "w": 10,
+        "h": 9
+      },
+      "23": {
+        "x": 0,
+        "y": 62,
+        "w": 24,
+        "h": 9
+      },
+      "24": {
+        "x": 0,
+        "y": 71,
+        "w": 24,
+        "h": 1
+      },
+      "25": {
+        "x": 0,
+        "y": 72,
+        "w": 24,
+        "h": 9
+      },
+      "26": {
+        "x": 0,
+        "y": 81,
+        "w": 24,
+        "h": 2
+      }
+    }
+  }
+}

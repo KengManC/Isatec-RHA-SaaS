@@ -15,6 +15,10 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
 ## [Unreleased]
 
 ### Added
+- Dashboard `[RHA] Dynatrace License consumption`: template for classic-licensed (DDU + DEM) environments. It shows DDU by pool,
+  entity type, entity, metric key and host (vs. included per-host DDU), log/event/trace/serverless DDU sources, estimated DEM by
+  capability, application and synthetic monitor, daily trends and a billing-metric availability check. Uses Metrics API v2
+  code tiles, so tiles are empty in the DPS environment rha75589; see the folder README for porting steps.
 - Dashboard `[RHA] Sean is Happy`: blue-themed overview with coloured single-value KPIs (response time,
   P90, requests, failure rate, CPU, memory, disk, open problems), service and host charts, a OneAgent
   configuration table and a threshold legend, with a "Sean is Happy" banner image at the top.
