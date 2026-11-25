@@ -14,7 +14,7 @@ tiles show no data here. The dashboard is built to be exported and imported into
 | Daily trend | DDU per day by pool, estimated DEM per day (RUM / Session Replay / Synthetic) |
 | DDU: metrics | Metric DDU by entity type, top 25 entities, top 25 metric keys (built-in / calculated / extension / custom), top 50 hosts with metric DDU consumed, included (`includedMetricDduPerHost`) and billable |
 | DDU: other pools | Top entities and sources for Log Monitoring, Events, Traces and Serverless DDU |
-| Host units by monitoring mode | **Estimated** host units for Full-Stack hosts, Infrastructure hosts and all hosts, next to the connected host units Dynatrace reports; a donut by mode; a per-mode summary (hosts, hosts consuming, RAM, host units, share, Total row, plus Dynatrace's connected and assigned host units); and every host with mode, state, RAM and host units. Hosts monitored in the last 2 h, from the Entities API (`environment-api:entities:read`) |
+| Host units by monitoring mode | **Estimated** host units for Full-Stack hosts, Infrastructure hosts and all hosts, next to the connected host units Dynatrace reports; a donut by mode; a per-mode summary (hosts, hosts consuming, RAM, host units, share, Total row, plus Dynatrace's connected and assigned host units); and every host with mode, state, RAM and host units. Hosts seen in the 2 h before the end of the dashboard timeframe, from the Entities API (`environment-api:entities:read`) |
 | DEM | Estimated DEM per web / mobile / custom application (sessions, replay sessions, user action properties), top 10 apps, synthetic monitors (browser actions, HTTP requests, third-party results) |
 | Porting check | Each billing metric the dashboard uses, with a status: OK, no data, or not available |
 
@@ -22,7 +22,10 @@ tiles show no data here. The dashboard is built to be exported and imported into
 
 * Every data tile is a **code tile** that calls the classic **Metrics API v2** (`@dynatrace-sdk/client-classic-environment-v2`).
   Classic billing metrics aren't in Grail, so DQL tiles can't show them. This also means the dashboard works without Grail.
-* The tiles follow the dashboard timeframe (`$dt_timeframe_from` / `$dt_timeframe_to`). The default is the last 30 days.
+* The tiles follow the dashboard timeframe. Dashboards pass it to each code tile as `context.$dt_timeframe_from` /
+  `$dt_timeframe_to`; the tiles also accept the `$dt_timeframe_*` text substitution and fall back to the last 30 days only if
+  neither is available. The first row of the **Billing metric availability** table shows the timeframe used and its source.
+  Host units are a point-in-time figure, so those tiles use the hosts seen in the 2 hours before the end of the timeframe.
   Billing metrics arrive with a 1–2 h delay.
 * **DDU** values come straight from Dynatrace. **DEM** values are **estimates**: billed counts (sessions filtered to
   `Type = Billed`) × the classic DEM weights in

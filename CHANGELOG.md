@@ -40,6 +40,10 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
   minute where a JustGo_mobile OS averaged over 30 s, with only `Time start`, `avg_ms` and `OS`.
 
 ### Fixed
+- Dashboard `[RHA] Dynatrace License consumption`: the tiles ignored the dashboard timeframe and always showed the last
+  30 days. They now read it from the `context` argument Dashboards pass to code tiles (`$dt_timeframe_from` / `_to`), with the
+  `$dt_timeframe_*` text substitution as a backup. Host-unit tiles use the 2 hours before the end of the timeframe, and the
+  porting check shows the timeframe in use.
 - Dashboard `[RHA] Dynatrace License consumption`: "Hosts: metric DDU vs included allowance" showed "Included DDU" in the
   billions (it read `includedMetricPerHost`, which counts data points) and only billable DDU; it now uses
   `includedMetricDduPerHost` and shows metric DDU consumed (`byEntityRaw`), included and billable. Per-entity queries read up
