@@ -34,6 +34,8 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
   minute where a JustGo_mobile OS averaged over 30 s, with only `Time start`, `avg_ms` and `OS`.
 
 ### Fixed
+- Dashboard `[RHA] Dynatrace License consumption`: chart tiles showed "The field … is no longer available" when the
+  timeframe had no billing data; they now show a zero-valued "No data in timeframe" row instead.
 - Dashboard `[RHA] Dynatrace License consumption`: every code tile failed with "Return statement is not allowed here" because
   the tile code was not wrapped in `export default async function`; the tiles now run.
 - Notebook `[RHA] Claude's Default Testing Notebook`: restored the column renames made directly in Dynatrace on
