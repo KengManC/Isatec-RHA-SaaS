@@ -14,6 +14,7 @@ tiles show no data here. The dashboard is built to be exported and imported into
 | Daily trend | DDU per day by pool, estimated DEM per day (RUM / Session Replay / Synthetic) |
 | DDU: metrics | Metric DDU by entity type, top 25 entities, top 25 metric keys (built-in / calculated / extension / custom), hosts vs. included per-host DDU |
 | DDU: other pools | Top entities and sources for Log Monitoring, Events, Traces and Serverless DDU |
+| DDU by host monitoring mode | DDU attributed to Full-Stack hosts, Infrastructure hosts and all hosts, hosts monitored, a per-mode summary (hosts, DDU per pool, included DDU, share, total row) with a donut, and every host with its mode and DDU. The mode comes from the Entities API (`environment-api:entities:read`) |
 | DEM | Estimated DEM per web / mobile / custom application (sessions, replay sessions, user action properties), top 10 apps, synthetic monitors (browser actions, HTTP requests, third-party results) |
 | Porting check | Each billing metric the dashboard uses, with a status: OK, no data, or not available |
 
@@ -40,7 +41,8 @@ tiles show no data here. The dashboard is built to be exported and imported into
 ## Porting to the classic-licensed environment
 
 1. The target environment needs the new Dashboards app (`<env>.apps.dynatrace.com`). Viewers need permission to read
-   metrics (`environment-api:metrics:read`) and to run code tiles (`app-engine:functions:run`).
+   metrics (`environment-api:metrics:read`), to read entities for the monitoring-mode tiles
+   (`environment-api:entities:read`) and to run code tiles (`app-engine:functions:run`).
 2. Import the JSON: **Dashboards → Upload** with `dynatrace-license-consumption.json`, or run
    `dtctl apply -f dynatrace-license-consumption.json --context <target>`.
    The file has no `id`, so importing it creates a new dashboard.

@@ -15,6 +15,9 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
 ## [Unreleased]
 
 ### Added
+- Dashboard `[RHA] Dynatrace License consumption`: new section "DDU by host monitoring mode" with DDU for Full-Stack hosts,
+  Infrastructure hosts and all hosts, hosts monitored, a per-mode summary (hosts, DDU per pool, included DDU, share, total
+  row) with a donut, and a per-host table. Monitoring mode comes from the Entities API; the porting check now also checks it.
 - Dashboard `[RHA] Dynatrace License consumption`: template for classic-licensed (DDU + DEM) environments. It shows DDU by pool,
   entity type, entity, metric key and host (vs. included per-host DDU), log/event/trace/serverless DDU sources, estimated DEM by
   capability, application and synthetic monitor, daily trends and a billing-metric availability check. Uses Metrics API v2
