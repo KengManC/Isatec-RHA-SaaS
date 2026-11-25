@@ -14,7 +14,7 @@ tiles show no data here. The dashboard is built to be exported and imported into
 | Daily trend | DDU per day by pool, estimated DEM per day (RUM / Session Replay / Synthetic) |
 | DDU: metrics | Metric DDU by entity type, top 25 entities, top 25 metric keys (built-in / calculated / extension / custom), top 50 hosts with metric DDU consumed, included (`includedMetricDduPerHost`) and billable |
 | DDU: other pools | Top entities and sources for Log Monitoring, Events, Traces and Serverless DDU |
-| DDU by host monitoring mode | DDU **consumed** (before the host-unit allowance, `metrics.byEntityRaw`) and **billable** (after it, `metrics.byEntity`) for Full-Stack hosts, Infrastructure hosts and all hosts; hosts monitored; a per-mode summary (hosts, consumed / included / billable metric DDU, log, event and trace DDU, total row) with a donut; and every host with its mode and DDU. The mode comes from the Entities API (`environment-api:entities:read`) |
+| Host units by monitoring mode | **Estimated** host units for Full-Stack hosts, Infrastructure hosts and all hosts, next to the connected host units Dynatrace reports; a donut by mode; a per-mode summary (hosts, hosts consuming, RAM, host units, share, Total row, plus Dynatrace's connected and assigned host units); and every host with mode, state, RAM and host units. Hosts monitored in the last 2 h, from the Entities API (`environment-api:entities:read`) |
 | DEM | Estimated DEM per web / mobile / custom application (sessions, replay sessions, user action properties), top 10 apps, synthetic monitors (browser actions, HTTP requests, third-party results) |
 | Porting check | Each billing metric the dashboard uses, with a status: OK, no data, or not available |
 
@@ -24,7 +24,8 @@ tiles show no data here. The dashboard is built to be exported and imported into
   Classic billing metrics aren't in Grail, so DQL tiles can't show them. This also means the dashboard works without Grail.
 * The tiles follow the dashboard timeframe (`$dt_timeframe_from` / `$dt_timeframe_to`). The default is the last 30 days.
   Billing metrics arrive with a 1–2 h delay.
-* **DDU** values come straight from Dynatrace. **DEM** values are **estimates**: billed counts × the classic DEM weights in
+* **DDU** values come straight from Dynatrace. **DEM** values are **estimates**: billed counts (sessions filtered to
+  `Type = Billed`) × the classic DEM weights in
   `DEM_WEIGHTS` near the top of each DEM tile:
 
   | Capability | DEM per unit |
@@ -37,6 +38,14 @@ tiles show no data here. The dashboard is built to be exported and imported into
   | Third-party synthetic result | 0.1 |
 
   For billed figures, use Account Management → License / Subscription.
+
+## Host-unit estimate
+
+Dynatrace does not report host units per host, so the monitoring-mode tiles estimate them from each host's RAM
+(`physicalMemory`) with the classic rules: up to 1.6 GiB = 0.1, 4 GiB = 0.25, 8 GiB = 0.5, 16 GiB = 1, then 1 host unit
+per started 16 GiB. Infrastructure hosts count 30 % of that, Discovery and unknown-mode hosts 0, and hosts with monitoring
+disabled 0. The rules are in `HU_RULES` at the top of each monitoring-mode tile. Compare the estimated total with
+**Connected host units (reported by Dynatrace)** (`dsfm:billing.hostunit.connected`) and adjust `HU_RULES` if they differ.
 
 ## Porting to the classic-licensed environment
 
