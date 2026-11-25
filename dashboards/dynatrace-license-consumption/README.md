@@ -12,9 +12,9 @@ tiles show no data here. The dashboard is built to be exported and imported into
 |---|---|
 | Summary | Total DDU, metric DDU, estimated DEM, Session Replay share, DDU by pool, DEM by capability (chart + table) |
 | Daily trend | DDU per day by pool, estimated DEM per day (RUM / Session Replay / Synthetic) |
-| DDU: metrics | Metric DDU by entity type, top 25 entities, top 25 metric keys (built-in / calculated / extension / custom), hosts vs. included per-host DDU |
+| DDU: metrics | Metric DDU by entity type, top 25 entities, top 25 metric keys (built-in / calculated / extension / custom), top 50 hosts with metric DDU consumed, included (`includedMetricDduPerHost`) and billable |
 | DDU: other pools | Top entities and sources for Log Monitoring, Events, Traces and Serverless DDU |
-| DDU by host monitoring mode | DDU attributed to Full-Stack hosts, Infrastructure hosts and all hosts, hosts monitored, a per-mode summary (hosts, DDU per pool, included DDU, share, total row) with a donut, and every host with its mode and DDU. The mode comes from the Entities API (`environment-api:entities:read`) |
+| DDU by host monitoring mode | DDU **consumed** (before the host-unit allowance, `metrics.byEntityRaw`) and **billable** (after it, `metrics.byEntity`) for Full-Stack hosts, Infrastructure hosts and all hosts; hosts monitored; a per-mode summary (hosts, consumed / included / billable metric DDU, log, event and trace DDU, total row) with a donut; and every host with its mode and DDU. The mode comes from the Entities API (`environment-api:entities:read`) |
 | DEM | Estimated DEM per web / mobile / custom application (sessions, replay sessions, user action properties), top 10 apps, synthetic monitors (browser actions, HTTP requests, third-party results) |
 | Porting check | Each billing metric the dashboard uses, with a status: OK, no data, or not available |
 

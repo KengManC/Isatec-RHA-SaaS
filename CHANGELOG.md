@@ -37,6 +37,11 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
   minute where a JustGo_mobile OS averaged over 30 s, with only `Time start`, `avg_ms` and `OS`.
 
 ### Fixed
+- Dashboard `[RHA] Dynatrace License consumption`: the monitoring-mode section showed 0 DDU for Infrastructure hosts and
+  "Included DDU" in the billions. It read billable DDU only (`metrics.byEntity`, after the host-unit allowance), the included
+  figure was data points (`includedMetricPerHost`), and per-entity queries were cut at 1,000 of ~5,000 series. It now shows
+  consumed DDU (`metrics.byEntityRaw`) and billable DDU side by side, uses `includedMetricDduPerHost`, and reads all series.
+  The "Hosts: metric DDU vs included allowance" tile gets the same fixes.
 - Dashboard `[RHA] Dynatrace License consumption`: "Top 25 metric keys by DDU" returned no records in a DDU environment
   because it split by `metric_key`, while the real dimension there is `Metric Key`. No tile names a dimension in its query any
   more (entity IDs and names are read from whatever dimensions a series has), sorting uses `value(auto, …)` because billing
