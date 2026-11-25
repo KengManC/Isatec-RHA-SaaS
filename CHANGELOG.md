@@ -34,6 +34,9 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
   minute where a JustGo_mobile OS averaged over 30 s, with only `Time start`, `avg_ms` and `OS`.
 
 ### Fixed
+- Dashboard `[RHA] Dynatrace License consumption`: both daily trend charts showed "The field \"Day\" is no longer
+  available" when billing data was returned, because ISO dates (`2026-11-24`) are read as timestamps, which a categorical
+  bar chart can't use as its category. Days are now labelled `24 Nov ’26` and still sorted by date.
 - Dashboard `[RHA] Dynatrace License consumption`: chart tiles showed "The field … is no longer available" when the
   timeframe had no billing data; they now show a zero-valued "No data in timeframe" row instead.
 - Dashboard `[RHA] Dynatrace License consumption`: every code tile failed with "Return statement is not allowed here" because
