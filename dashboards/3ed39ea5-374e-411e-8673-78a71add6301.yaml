@@ -1,143 +1,141 @@
 content:
   annotations: []
-  baseQueries: []
   layouts:
     "0":
-      h: 4
-      w: 23
+      h: 6
+      w: 24
       x: 0
       "y": 0
     "1":
       h: 2
       w: 24
       x: 0
-      "y": 4
+      "y": 6
     "2":
       h: 1
       w: 24
       x: 0
-      "y": 6
+      "y": 8
     "3":
       h: 4
       w: 5
       x: 0
-      "y": 7
+      "y": 9
     "4":
       h: 4
       w: 5
       x: 5
-      "y": 7
+      "y": 9
     "5":
       h: 4
       w: 5
       x: 10
-      "y": 7
+      "y": 9
     "6":
       h: 4
       w: 5
       x: 15
-      "y": 7
+      "y": 9
     "7":
       h: 4
       w: 4
       x: 20
-      "y": 7
+      "y": 9
     "8":
       h: 1
       w: 24
       x: 0
-      "y": 11
+      "y": 13
     "9":
       h: 4
       w: 4
       x: 0
-      "y": 12
+      "y": 14
     "10":
       h: 4
       w: 5
       x: 4
-      "y": 12
+      "y": 14
     "11":
       h: 4
       w: 5
       x: 9
-      "y": 12
+      "y": 14
     "12":
       h: 4
       w: 5
       x: 14
-      "y": 12
+      "y": 14
     "13":
       h: 4
       w: 5
       x: 19
-      "y": 12
+      "y": 14
     "14":
       h: 1
       w: 24
       x: 0
-      "y": 16
+      "y": 18
     "15":
       h: 6
       w: 12
       x: 0
-      "y": 17
+      "y": 19
     "16":
       h: 6
       w: 12
       x: 12
-      "y": 17
+      "y": 19
     "17":
       h: 6
       w: 10
       x: 0
-      "y": 23
+      "y": 25
     "18":
       h: 6
       w: 14
       x: 10
-      "y": 23
+      "y": 25
     "19":
       h: 1
       w: 24
       x: 0
-      "y": 29
+      "y": 31
     "20":
       h: 6
       w: 8
       x: 0
-      "y": 30
+      "y": 32
     "21":
       h: 6
       w: 8
       x: 8
-      "y": 30
+      "y": 32
     "22":
       h: 6
       w: 8
       x: 16
-      "y": 30
+      "y": 32
     "23":
       h: 5
       w: 24
       x: 0
-      "y": 36
+      "y": 38
     "24":
       h: 1
       w: 24
       x: 0
-      "y": 41
+      "y": 43
     "25":
       h: 6
       w: 16
       x: 0
-      "y": 42
+      "y": 44
     "26":
       h: 6
       w: 8
       x: 16
-      "y": 42
-  rows: []
+      "y": 44
   settings: {}
   tiles:
     "0":
@@ -977,10 +975,10 @@ id: 3ed39ea5-374e-411e-8673-78a71add6301
 isPrivate: true
 modificationInfo:
   createdTime: 2026-11-23T08:44:32.414Z
-  lastModifiedTime: 2026-11-23T09:13:19.017Z
+  lastModifiedTime: 2026-11-24T09:01:15.757Z
 name: '[RHA] Sean is Happy'
 owner: 956a626b-e054-4ee0-ac93-b0433ffc861d
 shareInfo:
   isShared: false
 type: dashboard
-version: 4
+version: 6

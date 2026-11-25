@@ -1,0 +1,2434 @@
+content:
+  layouts:
+    "0":
+      h: 4
+      w: 24
+      x: 0
+      "y": 0
+    "1":
+      h: 1
+      w: 24
+      x: 0
+      "y": 4
+    "2":
+      h: 4
+      w: 6
+      x: 0
+      "y": 5
+    "3":
+      h: 4
+      w: 6
+      x: 6
+      "y": 5
+    "4":
+      h: 4
+      w: 6
+      x: 12
+      "y": 5
+    "5":
+      h: 4
+      w: 6
+      x: 18
+      "y": 5
+    "6":
+      h: 7
+      w: 8
+      x: 0
+      "y": 9
+    "7":
+      h: 7
+      w: 8
+      x: 8
+      "y": 9
+    "8":
+      h: 7
+      w: 8
+      x: 16
+      "y": 9
+    "9":
+      h: 1
+      w: 24
+      x: 0
+      "y": 16
+    "10":
+      h: 7
+      w: 12
+      x: 0
+      "y": 17
+    "11":
+      h: 7
+      w: 12
+      x: 12
+      "y": 17
+    "12":
+      h: 1
+      w: 24
+      x: 0
+      "y": 24
+    "13":
+      h: 8
+      w: 8
+      x: 0
+      "y": 25
+    "14":
+      h: 8
+      w: 16
+      x: 8
+      "y": 25
+    "15":
+      h: 9
+      w: 12
+      x: 0
+      "y": 33
+    "16":
+      h: 9
+      w: 12
+      x: 12
+      "y": 33
+    "17":
+      h: 1
+      w: 24
+      x: 0
+      "y": 42
+    "18":
+      h: 9
+      w: 12
+      x: 0
+      "y": 43
+    "19":
+      h: 9
+      w: 12
+      x: 12
+      "y": 43
+    "20":
+      h: 1
+      w: 24
+      x: 0
+      "y": 52
+    "21":
+      h: 9
+      w: 14
+      x: 0
+      "y": 53
+    "22":
+      h: 9
+      w: 10
+      x: 14
+      "y": 53
+    "23":
+      h: 9
+      w: 24
+      x: 0
+      "y": 62
+    "24":
+      h: 1
+      w: 24
+      x: 0
+      "y": 71
+    "25":
+      h: 9
+      w: 24
+      x: 0
+      "y": 72
+    "26":
+      h: 2
+      w: 24
+      x: 0
+      "y": 81
+  settings:
+    defaultTimeframe:
+      enabled: true
+      value:
+        from: now()-30d
+        to: now()
+  tiles:
+    "0":
+      content: "# \U0001F4CA Dynatrace License consumption\n**Davis Data Units (DDU)** and **Digital Experience Monitoring (DEM)** consumption for the selected timeframe, broken down by pool,\nentity type, host, metric, application and synthetic monitor.\n\n* Template for **classic-licensed** environments (DDU + DEM). In a Dynatrace Platform Subscription (DPS) environment such as rha75589 the\n  `builtin:billing.*` metrics carry no data, so the tiles stay empty here.\n* Every tile reads the classic **Metrics API v2** (`builtin:billing.*`) through a code tile, so it works without Grail.\n  Viewers need permission to read metrics (`environment-api:metrics:read`).\n* DDU values are reported by Dynatrace. **DEM values are estimates**: session, action and request counts × the classic DEM weights\n  (set in `DEM_WEIGHTS` in each DEM tile). For billed figures, see **Account Management → License / Subscription**.\n* Billing metrics lag by about 1–2 h. Use a timeframe of at least 24 h; the default is the last 30 days."
+      type: markdown
+    "1":
+      content: "## \U0001F9EE Summary"
+      type: markdown
+    "2":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      description: Sum of all DDU pools (metrics, logs, events, traces, serverless) in the timeframe.
+      input: |
+        import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+        // ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----
+        const TF_FROM = "$dt_timeframe_from";
+        const TF_TO = "$dt_timeframe_to";
+        const UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };
+        function toMs(expr, fallback) {
+          if (!expr || expr.startsWith('$')) return fallback;
+          const iso = Date.parse(expr);
+          if (!isNaN(iso)) return iso;
+          const m = expr.replace(/\s/g, '').match(/^now(?:\(\))?(?:([-+])(\d+)([smhdwMy]))?(?:@\w+)?$/);
+          if (!m) return fallback;
+          return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();
+        }
+        const TO = toMs(TF_TO, Date.now());
+        const FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);
+
+        // ---- DEM unit weights (classic DEM rate card) - align with your contract ----
+        const DEM_WEIGHTS = {
+          webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,
+          mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,
+          customSession: 0.25, customUserActionProperty: 0.01,
+          browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,
+        };
+
+        // ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----
+        async function q(metricSelector, resolution = 'Inf', extra = {}) {
+          try {
+            const res = await metricsClient.query({
+              acceptType: 'application/json; charset=utf-8',
+              metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,
+            });
+            return (res.result && res.result[0] && res.result[0].data) || [];
+          } catch (e) {
+            console.warn('Metric query failed: ' + metricSelector, e);
+            return [];
+          }
+        }
+        const sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);
+        const total = (series) => series.reduce((a, s) => a + sumVals(s), 0);
+        const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+        // Charts lose their field mapping on an empty result ("The field ... is no longer available"),
+        // so chart tiles return one zero-valued placeholder row when there is no data.
+        const NO_DATA = 'No data in timeframe';
+        // Day label for bar-chart categories. An ISO date such as "2026-11-24" is detected as a timestamp, which a
+        // categorical chart cannot use as its category ("The field \"Day\" is no longer available"), so use "24 Nov ’26".
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = (t) => { const d = new Date(t);
+          return String(d.getUTCDate()).padStart(2, '0') + ' ' + MONTHS[d.getUTCMonth()] + ' ’' + String(d.getUTCFullYear()).slice(2); };
+        const byDate = (byDay) => Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+        const orPlaceholder = (rows, placeholder) => (rows.length ? rows : [placeholder]);
+        const dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';
+        const ENTITY_TYPES = {
+          HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',
+          CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',
+          MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',
+          SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',
+          CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',
+          AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',
+        };
+        const entityType = (id) => {
+          if (!id) return 'Unattributed';
+          const p = id.replace(/-[0-9A-F]{16}$/i, '');
+          return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();
+        };
+
+        export default async function () {
+          const POOLS = [["Metrics", "builtin:billing.ddu.metrics.total"], ["Log Monitoring", "builtin:billing.ddu.log.total"], ["Events", "builtin:billing.ddu.events.total"], ["Traces", "builtin:billing.ddu.traces.total"], ["Serverless", "builtin:billing.ddu.serverless.total"]];
+          let ddu = 0;
+          for (const [, key] of POOLS) ddu += total(await q(key));
+          return [{ "Total DDU": round(ddu) }];
+        }
+      title: Total DDU consumed
+      type: code
+      visualization: singleValue
+      visualizationSettings:
+        autoSelectVisualization: false
+        coloring:
+          colorRules:
+            - colorMode: custom-color
+              comparator: ≥
+              customColor: '#134FC9'
+              field: Total DDU
+              type: number
+              value: 0
+        singleValue:
+          colorThresholdTarget: background
+          isIconVisible: true
+          label: Total DDU
+          labelMode: none
+          prefixIcon: DataIcon
+          recordField: Total DDU
+          sparklineSettings:
+            isVisible: false
+          trend:
+            isVisible: false
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Total DDU
+            suffix: ' DDU'
+            unitCategory: unspecified
+    "3":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      description: DDU consumed by custom, extension, calculated and ingested metrics beyond the included per-host data points.
+      input: |
+        import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+        // ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----
+        const TF_FROM = "$dt_timeframe_from";
+        const TF_TO = "$dt_timeframe_to";
+        const UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };
+        function toMs(expr, fallback) {
+          if (!expr || expr.startsWith('$')) return fallback;
+          const iso = Date.parse(expr);
+          if (!isNaN(iso)) return iso;
+          const m = expr.replace(/\s/g, '').match(/^now(?:\(\))?(?:([-+])(\d+)([smhdwMy]))?(?:@\w+)?$/);
+          if (!m) return fallback;
+          return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();
+        }
+        const TO = toMs(TF_TO, Date.now());
+        const FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);
+
+        // ---- DEM unit weights (classic DEM rate card) - align with your contract ----
+        const DEM_WEIGHTS = {
+          webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,
+          mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,
+          customSession: 0.25, customUserActionProperty: 0.01,
+          browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,
+        };
+
+        // ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----
+        async function q(metricSelector, resolution = 'Inf', extra = {}) {
+          try {
+            const res = await metricsClient.query({
+              acceptType: 'application/json; charset=utf-8',
+              metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,
+            });
+            return (res.result && res.result[0] && res.result[0].data) || [];
+          } catch (e) {
+            console.warn('Metric query failed: ' + metricSelector, e);
+            return [];
+          }
+        }
+        const sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);
+        const total = (series) => series.reduce((a, s) => a + sumVals(s), 0);
+        const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+        // Charts lose their field mapping on an empty result ("The field ... is no longer available"),
+        // so chart tiles return one zero-valued placeholder row when there is no data.
+        const NO_DATA = 'No data in timeframe';
+        // Day label for bar-chart categories. An ISO date such as "2026-11-24" is detected as a timestamp, which a
+        // categorical chart cannot use as its category ("The field \"Day\" is no longer available"), so use "24 Nov ’26".
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = (t) => { const d = new Date(t);
+          return String(d.getUTCDate()).padStart(2, '0') + ' ' + MONTHS[d.getUTCMonth()] + ' ’' + String(d.getUTCFullYear()).slice(2); };
+        const byDate = (byDay) => Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+        const orPlaceholder = (rows, placeholder) => (rows.length ? rows : [placeholder]);
+        const dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';
+        const ENTITY_TYPES = {
+          HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',
+          CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',
+          MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',
+          SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',
+          CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',
+          AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',
+        };
+        const entityType = (id) => {
+          if (!id) return 'Unattributed';
+          const p = id.replace(/-[0-9A-F]{16}$/i, '');
+          return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();
+        };
+
+        export default async function () {
+          return [{ "Metric DDU": round(total(await q('builtin:billing.ddu.metrics.total'))) }];
+        }
+      title: Metric DDU
+      type: code
+      visualization: singleValue
+      visualizationSettings:
+        autoSelectVisualization: false
+        coloring:
+          colorRules:
+            - colorMode: custom-color
+              comparator: ≥
+              customColor: '#2A7453'
+              field: Metric DDU
+              type: number
+              value: 0
+        singleValue:
+          colorThresholdTarget: background
+          isIconVisible: true
+          label: Metric DDU
+          labelMode: none
+          prefixIcon: ChartLineIcon
+          recordField: Metric DDU
+          sparklineSettings:
+            isVisible: false
+          trend:
+            isVisible: false
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Metric DDU
+            suffix: ' DDU'
+            unitCategory: unspecified
+    "4":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      description: Real User Monitoring sessions and synthetic executions converted to DEM units with DEM_WEIGHTS.
+      input: |
+        import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+        // ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----
+        const TF_FROM = "$dt_timeframe_from";
+        const TF_TO = "$dt_timeframe_to";
+        const UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };
+        function toMs(expr, fallback) {
+          if (!expr || expr.startsWith('$')) return fallback;
+          const iso = Date.parse(expr);
+          if (!isNaN(iso)) return iso;
+          const m = expr.replace(/\s/g, '').match(/^now(?:\(\))?(?:([-+])(\d+)([smhdwMy]))?(?:@\w+)?$/);
+          if (!m) return fallback;
+          return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();
+        }
+        const TO = toMs(TF_TO, Date.now());
+        const FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);
+
+        // ---- DEM unit weights (classic DEM rate card) - align with your contract ----
+        const DEM_WEIGHTS = {
+          webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,
+          mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,
+          customSession: 0.25, customUserActionProperty: 0.01,
+          browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,
+        };
+
+        // ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----
+        async function q(metricSelector, resolution = 'Inf', extra = {}) {
+          try {
+            const res = await metricsClient.query({
+              acceptType: 'application/json; charset=utf-8',
+              metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,
+            });
+            return (res.result && res.result[0] && res.result[0].data) || [];
+          } catch (e) {
+            console.warn('Metric query failed: ' + metricSelector, e);
+            return [];
+          }
+        }
+        const sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);
+        const total = (series) => series.reduce((a, s) => a + sumVals(s), 0);
+        const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+        // Charts lose their field mapping on an empty result ("The field ... is no longer available"),
+        // so chart tiles return one zero-valued placeholder row when there is no data.
+        const NO_DATA = 'No data in timeframe';
+        // Day label for bar-chart categories. An ISO date such as "2026-11-24" is detected as a timestamp, which a
+        // categorical chart cannot use as its category ("The field \"Day\" is no longer available"), so use "24 Nov ’26".
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = (t) => { const d = new Date(t);
+          return String(d.getUTCDate()).padStart(2, '0') + ' ' + MONTHS[d.getUTCMonth()] + ' ’' + String(d.getUTCFullYear()).slice(2); };
+        const byDate = (byDay) => Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+        const orPlaceholder = (rows, placeholder) => (rows.length ? rows : [placeholder]);
+        const dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';
+        const ENTITY_TYPES = {
+          HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',
+          CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',
+          MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',
+          SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',
+          CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',
+          AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',
+        };
+        const entityType = (id) => {
+          if (!id) return 'Unattributed';
+          const p = id.replace(/-[0-9A-F]{16}$/i, '');
+          return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();
+        };
+
+        export default async function () {
+          const DEM_PARTS = [
+            ['Web sessions', 'builtin:billing.apps.web.sessionsWithoutReplayByApplication', DEM_WEIGHTS.webSession],
+            ['Web sessions with replay', 'builtin:billing.apps.web.sessionsWithReplayByApplication', DEM_WEIGHTS.webSessionReplay],
+            ['Web user action properties', 'builtin:billing.apps.web.userActionPropertiesByApplication', DEM_WEIGHTS.webUserActionProperty],
+            ['Mobile sessions', 'builtin:billing.apps.mobile.sessionsWithoutReplayByApplication', DEM_WEIGHTS.mobileSession],
+            ['Mobile sessions with replay', 'builtin:billing.apps.mobile.sessionsWithReplayByApplication', DEM_WEIGHTS.mobileSessionReplay],
+            ['Mobile user action properties', 'builtin:billing.apps.mobile.userActionPropertiesByMobileApplication', DEM_WEIGHTS.mobileUserActionProperty],
+            ['Custom app sessions', 'builtin:billing.apps.custom.sessionsWithoutReplayByApplication', DEM_WEIGHTS.customSession],
+            ['Custom app user action properties', 'builtin:billing.apps.custom.userActionPropertiesByDeviceApplication', DEM_WEIGHTS.customUserActionProperty],
+            ['Browser monitor actions', 'builtin:billing.synthetic.actions', DEM_WEIGHTS.browserAction],
+            ['HTTP monitor requests', 'builtin:billing.synthetic.requests', DEM_WEIGHTS.httpRequest],
+            ['Third-party synthetic results', 'builtin:billing.synthetic.external', DEM_WEIGHTS.thirdPartyResult],
+          ];
+          let dem = 0;
+          for (const [, key, w] of DEM_PARTS) dem += total(await q(key)) * w;
+          return [{ "Estimated DEM": round(dem) }];
+        }
+      title: Estimated DEM units
+      type: code
+      visualization: singleValue
+      visualizationSettings:
+        autoSelectVisualization: false
+        coloring:
+          colorRules:
+            - colorMode: custom-color
+              comparator: ≥
+              customColor: '#7C38A1'
+              field: Estimated DEM
+              type: number
+              value: 0
+        singleValue:
+          colorThresholdTarget: background
+          isIconVisible: true
+          label: Estimated DEM
+          labelMode: none
+          prefixIcon: UserIcon
+          recordField: Estimated DEM
+          sparklineSettings:
+            isVisible: false
+          trend:
+            isVisible: false
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Estimated DEM
+            suffix: ' DEM'
+            unitCategory: unspecified
+    "5":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      description: Share of billed web sessions captured with Session Replay. These cost 4× a plain session (1.0 vs 0.25 DEM).
+      input: |
+        import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+        // ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----
+        const TF_FROM = "$dt_timeframe_from";
+        const TF_TO = "$dt_timeframe_to";
+        const UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };
+        function toMs(expr, fallback) {
+          if (!expr || expr.startsWith('$')) return fallback;
+          const iso = Date.parse(expr);
+          if (!isNaN(iso)) return iso;
+          const m = expr.replace(/\s/g, '').match(/^now(?:\(\))?(?:([-+])(\d+)([smhdwMy]))?(?:@\w+)?$/);
+          if (!m) return fallback;
+          return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();
+        }
+        const TO = toMs(TF_TO, Date.now());
+        const FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);
+
+        // ---- DEM unit weights (classic DEM rate card) - align with your contract ----
+        const DEM_WEIGHTS = {
+          webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,
+          mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,
+          customSession: 0.25, customUserActionProperty: 0.01,
+          browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,
+        };
+
+        // ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----
+        async function q(metricSelector, resolution = 'Inf', extra = {}) {
+          try {
+            const res = await metricsClient.query({
+              acceptType: 'application/json; charset=utf-8',
+              metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,
+            });
+            return (res.result && res.result[0] && res.result[0].data) || [];
+          } catch (e) {
+            console.warn('Metric query failed: ' + metricSelector, e);
+            return [];
+          }
+        }
+        const sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);
+        const total = (series) => series.reduce((a, s) => a + sumVals(s), 0);
+        const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+        // Charts lose their field mapping on an empty result ("The field ... is no longer available"),
+        // so chart tiles return one zero-valued placeholder row when there is no data.
+        const NO_DATA = 'No data in timeframe';
+        // Day label for bar-chart categories. An ISO date such as "2026-11-24" is detected as a timestamp, which a
+        // categorical chart cannot use as its category ("The field \"Day\" is no longer available"), so use "24 Nov ’26".
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = (t) => { const d = new Date(t);
+          return String(d.getUTCDate()).padStart(2, '0') + ' ' + MONTHS[d.getUTCMonth()] + ' ’' + String(d.getUTCFullYear()).slice(2); };
+        const byDate = (byDay) => Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+        const orPlaceholder = (rows, placeholder) => (rows.length ? rows : [placeholder]);
+        const dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';
+        const ENTITY_TYPES = {
+          HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',
+          CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',
+          MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',
+          SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',
+          CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',
+          AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',
+        };
+        const entityType = (id) => {
+          if (!id) return 'Unattributed';
+          const p = id.replace(/-[0-9A-F]{16}$/i, '');
+          return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();
+        };
+
+        export default async function () {
+          const plain = total(await q('builtin:billing.apps.web.sessionsWithoutReplayByApplication'));
+          const replay = total(await q('builtin:billing.apps.web.sessionsWithReplayByApplication'));
+          const pct = plain + replay > 0 ? (replay / (plain + replay)) * 100 : 0;
+          return [{ "Replay share": round(pct, 1) }];
+        }
+      title: Session Replay share of web sessions
+      type: code
+      visualization: singleValue
+      visualizationSettings:
+        autoSelectVisualization: false
+        coloring:
+          colorRules:
+            - colorMode: custom-color
+              comparator: ≥
+              customColor: '#D56B1A'
+              field: Replay share
+              type: number
+              value: 0
+        singleValue:
+          colorThresholdTarget: background
+          isIconVisible: true
+          label: Replay share
+          labelMode: none
+          prefixIcon: VideoIcon
+          recordField: Replay share
+          sparklineSettings:
+            isVisible: false
+          trend:
+            isVisible: false
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Replay share
+            suffix: ' %'
+            unitCategory: unspecified
+    "6":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      description: Share of DDU consumption per DDU pool.
+      input: |
+        import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+        // ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----
+        const TF_FROM = "$dt_timeframe_from";
+        const TF_TO = "$dt_timeframe_to";
+        const UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };
+        function toMs(expr, fallback) {
+          if (!expr || expr.startsWith('$')) return fallback;
+          const iso = Date.parse(expr);
+          if (!isNaN(iso)) return iso;
+          const m = expr.replace(/\s/g, '').match(/^now(?:\(\))?(?:([-+])(\d+)([smhdwMy]))?(?:@\w+)?$/);
+          if (!m) return fallback;
+          return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();
+        }
+        const TO = toMs(TF_TO, Date.now());
+        const FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);
+
+        // ---- DEM unit weights (classic DEM rate card) - align with your contract ----
+        const DEM_WEIGHTS = {
+          webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,
+          mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,
+          customSession: 0.25, customUserActionProperty: 0.01,
+          browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,
+        };
+
+        // ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----
+        async function q(metricSelector, resolution = 'Inf', extra = {}) {
+          try {
+            const res = await metricsClient.query({
+              acceptType: 'application/json; charset=utf-8',
+              metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,
+            });
+            return (res.result && res.result[0] && res.result[0].data) || [];
+          } catch (e) {
+            console.warn('Metric query failed: ' + metricSelector, e);
+            return [];
+          }
+        }
+        const sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);
+        const total = (series) => series.reduce((a, s) => a + sumVals(s), 0);
+        const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+        // Charts lose their field mapping on an empty result ("The field ... is no longer available"),
+        // so chart tiles return one zero-valued placeholder row when there is no data.
+        const NO_DATA = 'No data in timeframe';
+        // Day label for bar-chart categories. An ISO date such as "2026-11-24" is detected as a timestamp, which a
+        // categorical chart cannot use as its category ("The field \"Day\" is no longer available"), so use "24 Nov ’26".
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = (t) => { const d = new Date(t);
+          return String(d.getUTCDate()).padStart(2, '0') + ' ' + MONTHS[d.getUTCMonth()] + ' ’' + String(d.getUTCFullYear()).slice(2); };
+        const byDate = (byDay) => Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+        const orPlaceholder = (rows, placeholder) => (rows.length ? rows : [placeholder]);
+        const dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';
+        const ENTITY_TYPES = {
+          HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',
+          CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',
+          MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',
+          SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',
+          CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',
+          AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',
+        };
+        const entityType = (id) => {
+          if (!id) return 'Unattributed';
+          const p = id.replace(/-[0-9A-F]{16}$/i, '');
+          return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();
+        };
+
+        export default async function () {
+          const POOLS = [["Metrics", "builtin:billing.ddu.metrics.total"], ["Log Monitoring", "builtin:billing.ddu.log.total"], ["Events", "builtin:billing.ddu.events.total"], ["Traces", "builtin:billing.ddu.traces.total"], ["Serverless", "builtin:billing.ddu.serverless.total"]];
+          const rows = [];
+          for (const [pool, key] of POOLS) rows.push({ Pool: pool, DDU: round(total(await q(key))) });
+          return orPlaceholder(rows.filter(r => r.DDU > 0).sort((a, b) => b.DDU - a.DDU), { Pool: NO_DATA, DDU: 0 });
+        }
+      title: DDU by pool
+      type: code
+      visualization: donutChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          categoricalBarChartSettings:
+            categoryAxis: Pool
+            categoryAxisLabel: Pool
+            valueAxis:
+              - DDU
+            valueAxisLabel: DDU
+          circleChartSettings:
+            valueType: relative
+          legend:
+            position: right
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: DDU
+            suffix: ""
+            unitCategory: unspecified
+    "7":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      description: Share of estimated DEM per RUM / synthetic capability.
+      input: |
+        import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+        // ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----
+        const TF_FROM = "$dt_timeframe_from";
+        const TF_TO = "$dt_timeframe_to";
+        const UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };
+        function toMs(expr, fallback) {
+          if (!expr || expr.startsWith('$')) return fallback;
+          const iso = Date.parse(expr);
+          if (!isNaN(iso)) return iso;
+          const m = expr.replace(/\s/g, '').match(/^now(?:\(\))?(?:([-+])(\d+)([smhdwMy]))?(?:@\w+)?$/);
+          if (!m) return fallback;
+          return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();
+        }
+        const TO = toMs(TF_TO, Date.now());
+        const FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);
+
+        // ---- DEM unit weights (classic DEM rate card) - align with your contract ----
+        const DEM_WEIGHTS = {
+          webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,
+          mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,
+          customSession: 0.25, customUserActionProperty: 0.01,
+          browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,
+        };
+
+        // ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----
+        async function q(metricSelector, resolution = 'Inf', extra = {}) {
+          try {
+            const res = await metricsClient.query({
+              acceptType: 'application/json; charset=utf-8',
+              metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,
+            });
+            return (res.result && res.result[0] && res.result[0].data) || [];
+          } catch (e) {
+            console.warn('Metric query failed: ' + metricSelector, e);
+            return [];
+          }
+        }
+        const sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);
+        const total = (series) => series.reduce((a, s) => a + sumVals(s), 0);
+        const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+        // Charts lose their field mapping on an empty result ("The field ... is no longer available"),
+        // so chart tiles return one zero-valued placeholder row when there is no data.
+        const NO_DATA = 'No data in timeframe';
+        // Day label for bar-chart categories. An ISO date such as "2026-11-24" is detected as a timestamp, which a
+        // categorical chart cannot use as its category ("The field \"Day\" is no longer available"), so use "24 Nov ’26".
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = (t) => { const d = new Date(t);
+          return String(d.getUTCDate()).padStart(2, '0') + ' ' + MONTHS[d.getUTCMonth()] + ' ’' + String(d.getUTCFullYear()).slice(2); };
+        const byDate = (byDay) => Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+        const orPlaceholder = (rows, placeholder) => (rows.length ? rows : [placeholder]);
+        const dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';
+        const ENTITY_TYPES = {
+          HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',
+          CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',
+          MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',
+          SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',
+          CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',
+          AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',
+        };
+        const entityType = (id) => {
+          if (!id) return 'Unattributed';
+          const p = id.replace(/-[0-9A-F]{16}$/i, '');
+          return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();
+        };
+
+        export default async function () {
+          const DEM_PARTS = [
+            ['Web sessions', 'builtin:billing.apps.web.sessionsWithoutReplayByApplication', DEM_WEIGHTS.webSession],
+            ['Web sessions with replay', 'builtin:billing.apps.web.sessionsWithReplayByApplication', DEM_WEIGHTS.webSessionReplay],
+            ['Web user action properties', 'builtin:billing.apps.web.userActionPropertiesByApplication', DEM_WEIGHTS.webUserActionProperty],
+            ['Mobile sessions', 'builtin:billing.apps.mobile.sessionsWithoutReplayByApplication', DEM_WEIGHTS.mobileSession],
+            ['Mobile sessions with replay', 'builtin:billing.apps.mobile.sessionsWithReplayByApplication', DEM_WEIGHTS.mobileSessionReplay],
+            ['Mobile user action properties', 'builtin:billing.apps.mobile.userActionPropertiesByMobileApplication', DEM_WEIGHTS.mobileUserActionProperty],
+            ['Custom app sessions', 'builtin:billing.apps.custom.sessionsWithoutReplayByApplication', DEM_WEIGHTS.customSession],
+            ['Custom app user action properties', 'builtin:billing.apps.custom.userActionPropertiesByDeviceApplication', DEM_WEIGHTS.customUserActionProperty],
+            ['Browser monitor actions', 'builtin:billing.synthetic.actions', DEM_WEIGHTS.browserAction],
+            ['HTTP monitor requests', 'builtin:billing.synthetic.requests', DEM_WEIGHTS.httpRequest],
+            ['Third-party synthetic results', 'builtin:billing.synthetic.external', DEM_WEIGHTS.thirdPartyResult],
+          ];
+          const rows = [];
+          for (const [capability, key, w] of DEM_PARTS) {
+            const n = total(await q(key));
+            rows.push({ Capability: capability, Units: round(n, 0), Weight: w, DEM: round(n * w) });
+          }
+          return orPlaceholder(rows.filter(r => r.DEM > 0).sort((a, b) => b.DEM - a.DEM),
+            { Capability: NO_DATA, Units: 0, Weight: 0, DEM: 0 });
+        }
+      title: Estimated DEM by capability
+      type: code
+      visualization: donutChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          categoricalBarChartSettings:
+            categoryAxis: Capability
+            categoryAxisLabel: Capability
+            valueAxis:
+              - DEM
+            valueAxisLabel: DEM
+          circleChartSettings:
+            valueType: relative
+          legend:
+            position: right
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: DEM
+            suffix: ""
+            unitCategory: unspecified
+    "8":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      description: Billed sessions, user action properties, actions, requests and results, and the DEM they convert to.
+      input: |
+        import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+        // ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----
+        const TF_FROM = "$dt_timeframe_from";
+        const TF_TO = "$dt_timeframe_to";
+        const UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };
+        function toMs(expr, fallback) {
+          if (!expr || expr.startsWith('$')) return fallback;
+          const iso = Date.parse(expr);
+          if (!isNaN(iso)) return iso;
+          const m = expr.replace(/\s/g, '').match(/^now(?:\(\))?(?:([-+])(\d+)([smhdwMy]))?(?:@\w+)?$/);
+          if (!m) return fallback;
+          return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();
+        }
+        const TO = toMs(TF_TO, Date.now());
+        const FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);
+
+        // ---- DEM unit weights (classic DEM rate card) - align with your contract ----
+        const DEM_WEIGHTS = {
+          webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,
+          mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,
+          customSession: 0.25, customUserActionProperty: 0.01,
+          browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,
+        };
+
+        // ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----
+        async function q(metricSelector, resolution = 'Inf', extra = {}) {
+          try {
+            const res = await metricsClient.query({
+              acceptType: 'application/json; charset=utf-8',
+              metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,
+            });
+            return (res.result && res.result[0] && res.result[0].data) || [];
+          } catch (e) {
+            console.warn('Metric query failed: ' + metricSelector, e);
+            return [];
+          }
+        }
+        const sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);
+        const total = (series) => series.reduce((a, s) => a + sumVals(s), 0);
+        const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+        // Charts lose their field mapping on an empty result ("The field ... is no longer available"),
+        // so chart tiles return one zero-valued placeholder row when there is no data.
+        const NO_DATA = 'No data in timeframe';
+        // Day label for bar-chart categories. An ISO date such as "2026-11-24" is detected as a timestamp, which a
+        // categorical chart cannot use as its category ("The field \"Day\" is no longer available"), so use "24 Nov ’26".
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = (t) => { const d = new Date(t);
+          return String(d.getUTCDate()).padStart(2, '0') + ' ' + MONTHS[d.getUTCMonth()] + ' ’' + String(d.getUTCFullYear()).slice(2); };
+        const byDate = (byDay) => Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+        const orPlaceholder = (rows, placeholder) => (rows.length ? rows : [placeholder]);
+        const dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';
+        const ENTITY_TYPES = {
+          HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',
+          CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',
+          MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',
+          SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',
+          CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',
+          AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',
+        };
+        const entityType = (id) => {
+          if (!id) return 'Unattributed';
+          const p = id.replace(/-[0-9A-F]{16}$/i, '');
+          return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();
+        };
+
+        export default async function () {
+          const DEM_PARTS = [
+            ['Web sessions', 'builtin:billing.apps.web.sessionsWithoutReplayByApplication', DEM_WEIGHTS.webSession],
+            ['Web sessions with replay', 'builtin:billing.apps.web.sessionsWithReplayByApplication', DEM_WEIGHTS.webSessionReplay],
+            ['Web user action properties', 'builtin:billing.apps.web.userActionPropertiesByApplication', DEM_WEIGHTS.webUserActionProperty],
+            ['Mobile sessions', 'builtin:billing.apps.mobile.sessionsWithoutReplayByApplication', DEM_WEIGHTS.mobileSession],
+            ['Mobile sessions with replay', 'builtin:billing.apps.mobile.sessionsWithReplayByApplication', DEM_WEIGHTS.mobileSessionReplay],
+            ['Mobile user action properties', 'builtin:billing.apps.mobile.userActionPropertiesByMobileApplication', DEM_WEIGHTS.mobileUserActionProperty],
+            ['Custom app sessions', 'builtin:billing.apps.custom.sessionsWithoutReplayByApplication', DEM_WEIGHTS.customSession],
+            ['Custom app user action properties', 'builtin:billing.apps.custom.userActionPropertiesByDeviceApplication', DEM_WEIGHTS.customUserActionProperty],
+            ['Browser monitor actions', 'builtin:billing.synthetic.actions', DEM_WEIGHTS.browserAction],
+            ['HTTP monitor requests', 'builtin:billing.synthetic.requests', DEM_WEIGHTS.httpRequest],
+            ['Third-party synthetic results', 'builtin:billing.synthetic.external', DEM_WEIGHTS.thirdPartyResult],
+          ];
+          const rows = [];
+          for (const [capability, key, w] of DEM_PARTS) {
+            const n = total(await q(key));
+            rows.push({ Capability: capability, "Billed units": round(n, 0), "DEM weight": w, "Estimated DEM": round(n * w) });
+          }
+          const sum = rows.reduce((a, r) => a + r["Estimated DEM"], 0);
+          return rows.map(r => ({ ...r, "Share": sum ? round(r["Estimated DEM"] / sum * 100, 1) : 0 }))
+            .sort((a, b) => b["Estimated DEM"] - a["Estimated DEM"]);
+        }
+      title: DEM capability detail
+      type: code
+      visualization: table
+      visualizationSettings:
+        autoSelectVisualization: false
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Billed units
+            suffix: ""
+            unitCategory: unspecified
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Estimated DEM
+            suffix: ""
+            unitCategory: unspecified
+          - baseUnit: count
+            cascade: null
+            decimals: 1
+            delimiter: true
+            displayUnit: null
+            identifier: Share
+            suffix: ' %'
+            unitCategory: unspecified
+    "9":
+      content: "## \U0001F4C8 Daily trend"
+      type: markdown
+    "10":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      description: DDU per day and pool. Look for step changes after new extensions, log sources or custom metrics.
+      input: |
+        import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+        // ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----
+        const TF_FROM = "$dt_timeframe_from";
+        const TF_TO = "$dt_timeframe_to";
+        const UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };
+        function toMs(expr, fallback) {
+          if (!expr || expr.startsWith('$')) return fallback;
+          const iso = Date.parse(expr);
+          if (!isNaN(iso)) return iso;
+          const m = expr.replace(/\s/g, '').match(/^now(?:\(\))?(?:([-+])(\d+)([smhdwMy]))?(?:@\w+)?$/);
+          if (!m) return fallback;
+          return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();
+        }
+        const TO = toMs(TF_TO, Date.now());
+        const FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);
+
+        // ---- DEM unit weights (classic DEM rate card) - align with your contract ----
+        const DEM_WEIGHTS = {
+          webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,
+          mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,
+          customSession: 0.25, customUserActionProperty: 0.01,
+          browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,
+        };
+
+        // ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----
+        async function q(metricSelector, resolution = 'Inf', extra = {}) {
+          try {
+            const res = await metricsClient.query({
+              acceptType: 'application/json; charset=utf-8',
+              metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,
+            });
+            return (res.result && res.result[0] && res.result[0].data) || [];
+          } catch (e) {
+            console.warn('Metric query failed: ' + metricSelector, e);
+            return [];
+          }
+        }
+        const sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);
+        const total = (series) => series.reduce((a, s) => a + sumVals(s), 0);
+        const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+        // Charts lose their field mapping on an empty result ("The field ... is no longer available"),
+        // so chart tiles return one zero-valued placeholder row when there is no data.
+        const NO_DATA = 'No data in timeframe';
+        // Day label for bar-chart categories. An ISO date such as "2026-11-24" is detected as a timestamp, which a
+        // categorical chart cannot use as its category ("The field \"Day\" is no longer available"), so use "24 Nov ’26".
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = (t) => { const d = new Date(t);
+          return String(d.getUTCDate()).padStart(2, '0') + ' ' + MONTHS[d.getUTCMonth()] + ' ’' + String(d.getUTCFullYear()).slice(2); };
+        const byDate = (byDay) => Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+        const orPlaceholder = (rows, placeholder) => (rows.length ? rows : [placeholder]);
+        const dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';
+        const ENTITY_TYPES = {
+          HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',
+          CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',
+          MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',
+          SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',
+          CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',
+          AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',
+        };
+        const entityType = (id) => {
+          if (!id) return 'Unattributed';
+          const p = id.replace(/-[0-9A-F]{16}$/i, '');
+          return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();
+        };
+
+        export default async function () {
+          const POOLS = [["Metrics", "builtin:billing.ddu.metrics.total"], ["Log Monitoring", "builtin:billing.ddu.log.total"], ["Events", "builtin:billing.ddu.events.total"], ["Traces", "builtin:billing.ddu.traces.total"], ["Serverless", "builtin:billing.ddu.serverless.total"]];
+          const byDay = {};
+          for (const [pool, key] of POOLS) {
+            for (const s of await q(key, '1d')) {
+              (s.timestamps || []).forEach((t, i) => {
+                const day = new Date(t).toISOString().slice(0, 10);
+                byDay[day] = byDay[day] || { Day: dayLabel(t) };
+                byDay[day][pool] = round((byDay[day][pool] || 0) + (s.values[i] ?? 0));
+              });
+            }
+          }
+          const rows = byDate(byDay)
+            .map(r => ({ Day: r.Day, ...Object.fromEntries(POOLS.map(([p]) => [p, r[p] || 0])) }));
+          return orPlaceholder(rows, { Day: NO_DATA, ...Object.fromEntries(POOLS.map(([p]) => [p, 0])) });
+        }
+      title: Daily DDU by pool
+      type: code
+      visualization: categoricalBarChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          categoricalBarChartSettings:
+            categoryAxis: Day
+            categoryAxisLabel: Day
+            valueAxis:
+              - Metrics
+              - Log Monitoring
+              - Events
+              - Traces
+              - Serverless
+            valueAxisLabel: DDU
+          legend:
+            position: bottom
+          truncationMode: middle
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Metrics
+            suffix: ""
+            unitCategory: unspecified
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Log Monitoring
+            suffix: ""
+            unitCategory: unspecified
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Events
+            suffix: ""
+            unitCategory: unspecified
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Traces
+            suffix: ""
+            unitCategory: unspecified
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Serverless
+            suffix: ""
+            unitCategory: unspecified
+    "11":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      description: Estimated DEM per day split into RUM sessions/properties, Session Replay sessions and synthetic executions.
+      input: |
+        import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+        // ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----
+        const TF_FROM = "$dt_timeframe_from";
+        const TF_TO = "$dt_timeframe_to";
+        const UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };
+        function toMs(expr, fallback) {
+          if (!expr || expr.startsWith('$')) return fallback;
+          const iso = Date.parse(expr);
+          if (!isNaN(iso)) return iso;
+          const m = expr.replace(/\s/g, '').match(/^now(?:\(\))?(?:([-+])(\d+)([smhdwMy]))?(?:@\w+)?$/);
+          if (!m) return fallback;
+          return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();
+        }
+        const TO = toMs(TF_TO, Date.now());
+        const FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);
+
+        // ---- DEM unit weights (classic DEM rate card) - align with your contract ----
+        const DEM_WEIGHTS = {
+          webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,
+          mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,
+          customSession: 0.25, customUserActionProperty: 0.01,
+          browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,
+        };
+
+        // ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----
+        async function q(metricSelector, resolution = 'Inf', extra = {}) {
+          try {
+            const res = await metricsClient.query({
+              acceptType: 'application/json; charset=utf-8',
+              metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,
+            });
+            return (res.result && res.result[0] && res.result[0].data) || [];
+          } catch (e) {
+            console.warn('Metric query failed: ' + metricSelector, e);
+            return [];
+          }
+        }
+        const sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);
+        const total = (series) => series.reduce((a, s) => a + sumVals(s), 0);
+        const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+        // Charts lose their field mapping on an empty result ("The field ... is no longer available"),
+        // so chart tiles return one zero-valued placeholder row when there is no data.
+        const NO_DATA = 'No data in timeframe';
+        // Day label for bar-chart categories. An ISO date such as "2026-11-24" is detected as a timestamp, which a
+        // categorical chart cannot use as its category ("The field \"Day\" is no longer available"), so use "24 Nov ’26".
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = (t) => { const d = new Date(t);
+          return String(d.getUTCDate()).padStart(2, '0') + ' ' + MONTHS[d.getUTCMonth()] + ' ’' + String(d.getUTCFullYear()).slice(2); };
+        const byDate = (byDay) => Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+        const orPlaceholder = (rows, placeholder) => (rows.length ? rows : [placeholder]);
+        const dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';
+        const ENTITY_TYPES = {
+          HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',
+          CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',
+          MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',
+          SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',
+          CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',
+          AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',
+        };
+        const entityType = (id) => {
+          if (!id) return 'Unattributed';
+          const p = id.replace(/-[0-9A-F]{16}$/i, '');
+          return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();
+        };
+
+        export default async function () {
+          const DEM_PARTS = [
+            ['Web sessions', 'builtin:billing.apps.web.sessionsWithoutReplayByApplication', DEM_WEIGHTS.webSession],
+            ['Web sessions with replay', 'builtin:billing.apps.web.sessionsWithReplayByApplication', DEM_WEIGHTS.webSessionReplay],
+            ['Web user action properties', 'builtin:billing.apps.web.userActionPropertiesByApplication', DEM_WEIGHTS.webUserActionProperty],
+            ['Mobile sessions', 'builtin:billing.apps.mobile.sessionsWithoutReplayByApplication', DEM_WEIGHTS.mobileSession],
+            ['Mobile sessions with replay', 'builtin:billing.apps.mobile.sessionsWithReplayByApplication', DEM_WEIGHTS.mobileSessionReplay],
+            ['Mobile user action properties', 'builtin:billing.apps.mobile.userActionPropertiesByMobileApplication', DEM_WEIGHTS.mobileUserActionProperty],
+            ['Custom app sessions', 'builtin:billing.apps.custom.sessionsWithoutReplayByApplication', DEM_WEIGHTS.customSession],
+            ['Custom app user action properties', 'builtin:billing.apps.custom.userActionPropertiesByDeviceApplication', DEM_WEIGHTS.customUserActionProperty],
+            ['Browser monitor actions', 'builtin:billing.synthetic.actions', DEM_WEIGHTS.browserAction],
+            ['HTTP monitor requests', 'builtin:billing.synthetic.requests', DEM_WEIGHTS.httpRequest],
+            ['Third-party synthetic results', 'builtin:billing.synthetic.external', DEM_WEIGHTS.thirdPartyResult],
+          ];
+          const byDay = {};
+          for (const [capability, key, w] of DEM_PARTS) {
+            const group = /monitor|synthetic/i.test(capability) ? 'Synthetic' : (/replay/i.test(capability) ? 'Session Replay' : 'RUM');
+            for (const s of await q(key, '1d')) {
+              (s.timestamps || []).forEach((t, i) => {
+                const day = new Date(t).toISOString().slice(0, 10);
+                byDay[day] = byDay[day] || { Day: dayLabel(t), RUM: 0, 'Session Replay': 0, Synthetic: 0 };
+                byDay[day][group] = round(byDay[day][group] + (s.values[i] ?? 0) * w);
+              });
+            }
+          }
+          return orPlaceholder(byDate(byDay),
+            { Day: NO_DATA, RUM: 0, 'Session Replay': 0, Synthetic: 0 });
+        }
+      title: Daily estimated DEM (RUM vs Synthetic)
+      type: code
+      visualization: categoricalBarChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          categoricalBarChartSettings:
+            categoryAxis: Day
+            categoryAxisLabel: Day
+            valueAxis:
+              - RUM
+              - Session Replay
+              - Synthetic
+            valueAxisLabel: DEM
+          legend:
+            position: bottom
+          truncationMode: middle
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: RUM
+            suffix: ""
+            unitCategory: unspecified
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Session Replay
+            suffix: ""
+            unitCategory: unspecified
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Synthetic
+            suffix: ""
+            unitCategory: unspecified
+    "12":
+      content: "## \U0001F9E9 DDU breakdown — where metric DDU comes from"
+      type: markdown
+    "13":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      description: Metric DDU grouped by the type of monitored entity it is attributed to (hosts, custom devices, services, …).
+      input: |
+        import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+        // ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----
+        const TF_FROM = "$dt_timeframe_from";
+        const TF_TO = "$dt_timeframe_to";
+        const UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };
+        function toMs(expr, fallback) {
+          if (!expr || expr.startsWith('$')) return fallback;
+          const iso = Date.parse(expr);
+          if (!isNaN(iso)) return iso;
+          const m = expr.replace(/\s/g, '').match(/^now(?:\(\))?(?:([-+])(\d+)([smhdwMy]))?(?:@\w+)?$/);
+          if (!m) return fallback;
+          return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();
+        }
+        const TO = toMs(TF_TO, Date.now());
+        const FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);
+
+        // ---- DEM unit weights (classic DEM rate card) - align with your contract ----
+        const DEM_WEIGHTS = {
+          webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,
+          mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,
+          customSession: 0.25, customUserActionProperty: 0.01,
+          browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,
+        };
+
+        // ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----
+        async function q(metricSelector, resolution = 'Inf', extra = {}) {
+          try {
+            const res = await metricsClient.query({
+              acceptType: 'application/json; charset=utf-8',
+              metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,
+            });
+            return (res.result && res.result[0] && res.result[0].data) || [];
+          } catch (e) {
+            console.warn('Metric query failed: ' + metricSelector, e);
+            return [];
+          }
+        }
+        const sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);
+        const total = (series) => series.reduce((a, s) => a + sumVals(s), 0);
+        const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+        // Charts lose their field mapping on an empty result ("The field ... is no longer available"),
+        // so chart tiles return one zero-valued placeholder row when there is no data.
+        const NO_DATA = 'No data in timeframe';
+        // Day label for bar-chart categories. An ISO date such as "2026-11-24" is detected as a timestamp, which a
+        // categorical chart cannot use as its category ("The field \"Day\" is no longer available"), so use "24 Nov ’26".
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = (t) => { const d = new Date(t);
+          return String(d.getUTCDate()).padStart(2, '0') + ' ' + MONTHS[d.getUTCMonth()] + ' ’' + String(d.getUTCFullYear()).slice(2); };
+        const byDate = (byDay) => Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+        const orPlaceholder = (rows, placeholder) => (rows.length ? rows : [placeholder]);
+        const dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';
+        const ENTITY_TYPES = {
+          HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',
+          CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',
+          MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',
+          SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',
+          CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',
+          AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',
+        };
+        const entityType = (id) => {
+          if (!id) return 'Unattributed';
+          const p = id.replace(/-[0-9A-F]{16}$/i, '');
+          return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();
+        };
+
+        export default async function () {
+          const series = await q('builtin:billing.ddu.metrics.byEntity:splitBy("dt.entity.monitored_entity")');
+          const byType = {};
+          for (const s of series) {
+            const t = entityType(dimVal(s, 'dt.entity.monitored_entity'));
+            byType[t] = (byType[t] || 0) + sumVals(s);
+          }
+          return orPlaceholder(Object.entries(byType).map(([t, v]) => ({ "Entity type": t, DDU: round(v) }))
+            .sort((a, b) => b.DDU - a.DDU).slice(0, 15), { "Entity type": NO_DATA, DDU: 0 });
+        }
+      title: Metric DDU by entity type
+      type: code
+      visualization: categoricalBarChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          categoricalBarChartSettings:
+            categoryAxis: Entity type
+            categoryAxisLabel: Entity type
+            valueAxis:
+              - DDU
+            valueAxisLabel: DDU
+          legend:
+            position: bottom
+          truncationMode: middle
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: DDU
+            suffix: ""
+            unitCategory: unspecified
+    "14":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      description: The individual hosts, custom devices, services etc. that consume the most metric DDU.
+      input: |
+        import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+        // ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----
+        const TF_FROM = "$dt_timeframe_from";
+        const TF_TO = "$dt_timeframe_to";
+        const UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };
+        function toMs(expr, fallback) {
+          if (!expr || expr.startsWith('$')) return fallback;
+          const iso = Date.parse(expr);
+          if (!isNaN(iso)) return iso;
+          const m = expr.replace(/\s/g, '').match(/^now(?:\(\))?(?:([-+])(\d+)([smhdwMy]))?(?:@\w+)?$/);
+          if (!m) return fallback;
+          return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();
+        }
+        const TO = toMs(TF_TO, Date.now());
+        const FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);
+
+        // ---- DEM unit weights (classic DEM rate card) - align with your contract ----
+        const DEM_WEIGHTS = {
+          webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,
+          mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,
+          customSession: 0.25, customUserActionProperty: 0.01,
+          browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,
+        };
+
+        // ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----
+        async function q(metricSelector, resolution = 'Inf', extra = {}) {
+          try {
+            const res = await metricsClient.query({
+              acceptType: 'application/json; charset=utf-8',
+              metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,
+            });
+            return (res.result && res.result[0] && res.result[0].data) || [];
+          } catch (e) {
+            console.warn('Metric query failed: ' + metricSelector, e);
+            return [];
+          }
+        }
+        const sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);
+        const total = (series) => series.reduce((a, s) => a + sumVals(s), 0);
+        const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+        // Charts lose their field mapping on an empty result ("The field ... is no longer available"),
+        // so chart tiles return one zero-valued placeholder row when there is no data.
+        const NO_DATA = 'No data in timeframe';
+        // Day label for bar-chart categories. An ISO date such as "2026-11-24" is detected as a timestamp, which a
+        // categorical chart cannot use as its category ("The field \"Day\" is no longer available"), so use "24 Nov ’26".
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = (t) => { const d = new Date(t);
+          return String(d.getUTCDate()).padStart(2, '0') + ' ' + MONTHS[d.getUTCMonth()] + ' ’' + String(d.getUTCFullYear()).slice(2); };
+        const byDate = (byDay) => Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+        const orPlaceholder = (rows, placeholder) => (rows.length ? rows : [placeholder]);
+        const dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';
+        const ENTITY_TYPES = {
+          HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',
+          CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',
+          MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',
+          SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',
+          CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',
+          AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',
+        };
+        const entityType = (id) => {
+          if (!id) return 'Unattributed';
+          const p = id.replace(/-[0-9A-F]{16}$/i, '');
+          return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();
+        };
+
+        export default async function () {
+          const series = await q('builtin:billing.ddu.metrics.byEntity:splitBy("dt.entity.monitored_entity"):names:sort(value(sum,descending)):limit(25)');
+          const all = total(await q('builtin:billing.ddu.metrics.total'));
+          return series.map(s => {
+            const id = dimVal(s, 'dt.entity.monitored_entity');
+            const ddu = sumVals(s);
+            return { Entity: dimVal(s, 'dt.entity.monitored_entity.name') || id || 'Unattributed', Type: entityType(id), "Entity ID": id,
+                     DDU: round(ddu), "Share": all ? round(ddu / all * 100, 1) : 0 };
+          }).sort((a, b) => b.DDU - a.DDU);
+        }
+      title: Top 25 entities by metric DDU
+      type: code
+      visualization: table
+      visualizationSettings:
+        autoSelectVisualization: false
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: DDU
+            suffix: ""
+            unitCategory: unspecified
+          - baseUnit: count
+            cascade: null
+            decimals: 1
+            delimiter: true
+            displayUnit: null
+            identifier: Share
+            suffix: ' %'
+            unitCategory: unspecified
+    "15":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      description: Metrics that drive DDU. Calculated (calc:), extension and ingested custom metrics are typical optimisation targets.
+      input: |
+        import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+        // ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----
+        const TF_FROM = "$dt_timeframe_from";
+        const TF_TO = "$dt_timeframe_to";
+        const UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };
+        function toMs(expr, fallback) {
+          if (!expr || expr.startsWith('$')) return fallback;
+          const iso = Date.parse(expr);
+          if (!isNaN(iso)) return iso;
+          const m = expr.replace(/\s/g, '').match(/^now(?:\(\))?(?:([-+])(\d+)([smhdwMy]))?(?:@\w+)?$/);
+          if (!m) return fallback;
+          return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();
+        }
+        const TO = toMs(TF_TO, Date.now());
+        const FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);
+
+        // ---- DEM unit weights (classic DEM rate card) - align with your contract ----
+        const DEM_WEIGHTS = {
+          webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,
+          mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,
+          customSession: 0.25, customUserActionProperty: 0.01,
+          browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,
+        };
+
+        // ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----
+        async function q(metricSelector, resolution = 'Inf', extra = {}) {
+          try {
+            const res = await metricsClient.query({
+              acceptType: 'application/json; charset=utf-8',
+              metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,
+            });
+            return (res.result && res.result[0] && res.result[0].data) || [];
+          } catch (e) {
+            console.warn('Metric query failed: ' + metricSelector, e);
+            return [];
+          }
+        }
+        const sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);
+        const total = (series) => series.reduce((a, s) => a + sumVals(s), 0);
+        const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+        // Charts lose their field mapping on an empty result ("The field ... is no longer available"),
+        // so chart tiles return one zero-valued placeholder row when there is no data.
+        const NO_DATA = 'No data in timeframe';
+        // Day label for bar-chart categories. An ISO date such as "2026-11-24" is detected as a timestamp, which a
+        // categorical chart cannot use as its category ("The field \"Day\" is no longer available"), so use "24 Nov ’26".
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = (t) => { const d = new Date(t);
+          return String(d.getUTCDate()).padStart(2, '0') + ' ' + MONTHS[d.getUTCMonth()] + ' ’' + String(d.getUTCFullYear()).slice(2); };
+        const byDate = (byDay) => Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+        const orPlaceholder = (rows, placeholder) => (rows.length ? rows : [placeholder]);
+        const dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';
+        const ENTITY_TYPES = {
+          HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',
+          CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',
+          MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',
+          SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',
+          CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',
+          AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',
+        };
+        const entityType = (id) => {
+          if (!id) return 'Unattributed';
+          const p = id.replace(/-[0-9A-F]{16}$/i, '');
+          return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();
+        };
+
+        export default async function () {
+          const series = await q('builtin:billing.ddu.metrics.byMetric:splitBy("metric_key"):sort(value(sum,descending)):limit(25)');
+          const all = total(await q('builtin:billing.ddu.metrics.total'));
+          return series.map(s => {
+            const key = dimVal(s, 'metric_key') || Object.values(s.dimensionMap || {})[0] || 'unknown';
+            const ddu = sumVals(s);
+            const source = key.startsWith('builtin:') ? 'Built-in' : key.startsWith('calc:') ? 'Calculated' :
+              key.startsWith('ext:') || key.startsWith('com.dynatrace.extension') ? 'Extension' : 'Custom / ingested';
+            return { "Metric key": key, Source: source, DDU: round(ddu), "Share": all ? round(ddu / all * 100, 1) : 0 };
+          }).sort((a, b) => b.DDU - a.DDU);
+        }
+      title: Top 25 metric keys by DDU
+      type: code
+      visualization: table
+      visualizationSettings:
+        autoSelectVisualization: false
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: DDU
+            suffix: ""
+            unitCategory: unspecified
+          - baseUnit: count
+            cascade: null
+            decimals: 1
+            delimiter: true
+            displayUnit: null
+            identifier: Share
+            suffix: ' %'
+            unitCategory: unspecified
+    "16":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      description: Metric DDU attributed to each host compared with the DDU included per host (host units). The included allowance is pooled across the environment, so 'Above included' is an indicator, not a billed amount.
+      input: |
+        import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+        // ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----
+        const TF_FROM = "$dt_timeframe_from";
+        const TF_TO = "$dt_timeframe_to";
+        const UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };
+        function toMs(expr, fallback) {
+          if (!expr || expr.startsWith('$')) return fallback;
+          const iso = Date.parse(expr);
+          if (!isNaN(iso)) return iso;
+          const m = expr.replace(/\s/g, '').match(/^now(?:\(\))?(?:([-+])(\d+)([smhdwMy]))?(?:@\w+)?$/);
+          if (!m) return fallback;
+          return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();
+        }
+        const TO = toMs(TF_TO, Date.now());
+        const FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);
+
+        // ---- DEM unit weights (classic DEM rate card) - align with your contract ----
+        const DEM_WEIGHTS = {
+          webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,
+          mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,
+          customSession: 0.25, customUserActionProperty: 0.01,
+          browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,
+        };
+
+        // ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----
+        async function q(metricSelector, resolution = 'Inf', extra = {}) {
+          try {
+            const res = await metricsClient.query({
+              acceptType: 'application/json; charset=utf-8',
+              metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,
+            });
+            return (res.result && res.result[0] && res.result[0].data) || [];
+          } catch (e) {
+            console.warn('Metric query failed: ' + metricSelector, e);
+            return [];
+          }
+        }
+        const sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);
+        const total = (series) => series.reduce((a, s) => a + sumVals(s), 0);
+        const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+        // Charts lose their field mapping on an empty result ("The field ... is no longer available"),
+        // so chart tiles return one zero-valued placeholder row when there is no data.
+        const NO_DATA = 'No data in timeframe';
+        // Day label for bar-chart categories. An ISO date such as "2026-11-24" is detected as a timestamp, which a
+        // categorical chart cannot use as its category ("The field \"Day\" is no longer available"), so use "24 Nov ’26".
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = (t) => { const d = new Date(t);
+          return String(d.getUTCDate()).padStart(2, '0') + ' ' + MONTHS[d.getUTCMonth()] + ' ’' + String(d.getUTCFullYear()).slice(2); };
+        const byDate = (byDay) => Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+        const orPlaceholder = (rows, placeholder) => (rows.length ? rows : [placeholder]);
+        const dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';
+        const ENTITY_TYPES = {
+          HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',
+          CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',
+          MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',
+          SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',
+          CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',
+          AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',
+        };
+        const entityType = (id) => {
+          if (!id) return 'Unattributed';
+          const p = id.replace(/-[0-9A-F]{16}$/i, '');
+          return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();
+        };
+
+        export default async function () {
+          const used = await q('builtin:billing.ddu.metrics.byEntity:filter(in("dt.entity.monitored_entity",entitySelector("type(HOST)"))):splitBy("dt.entity.monitored_entity"):names:sort(value(sum,descending)):limit(100)');
+          const incl = await q('builtin:billing.ddu.includedMetricPerHost:splitBy("dt.entity.host"):names');
+          const rows = {};
+          for (const s of used) {
+            const id = dimVal(s, 'dt.entity.monitored_entity');
+            rows[id] = { Host: dimVal(s, 'dt.entity.monitored_entity.name') || id, "Host ID": id, "Metric DDU": sumVals(s), "Included DDU": 0 };
+          }
+          for (const s of incl) {
+            const id = dimVal(s, 'dt.entity.host');
+            rows[id] = rows[id] || { Host: dimVal(s, 'dt.entity.host.name') || id, "Host ID": id, "Metric DDU": 0, "Included DDU": 0 };
+            rows[id]["Included DDU"] += sumVals(s);
+          }
+          return Object.values(rows).map(r => ({
+            Host: r.Host, "Host ID": r["Host ID"], "Metric DDU": round(r["Metric DDU"]), "Included DDU": round(r["Included DDU"]),
+            "Above included": round(Math.max(0, r["Metric DDU"] - r["Included DDU"])),
+          })).sort((a, b) => b["Metric DDU"] - a["Metric DDU"]).slice(0, 50);
+        }
+      title: 'Hosts: metric DDU vs included allowance'
+      type: code
+      visualization: table
+      visualizationSettings:
+        autoSelectVisualization: false
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Metric DDU
+            suffix: ""
+            unitCategory: unspecified
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Included DDU
+            suffix: ""
+            unitCategory: unspecified
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Above included
+            suffix: ""
+            unitCategory: unspecified
+    "17":
+      content: "## \U0001F5C2️ DDU breakdown — logs, events, traces and serverless"
+      type: markdown
+    "18":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      description: Hosts, process groups, Lambda functions etc. that consume the most non-metric DDU.
+      input: |
+        import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+        // ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----
+        const TF_FROM = "$dt_timeframe_from";
+        const TF_TO = "$dt_timeframe_to";
+        const UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };
+        function toMs(expr, fallback) {
+          if (!expr || expr.startsWith('$')) return fallback;
+          const iso = Date.parse(expr);
+          if (!isNaN(iso)) return iso;
+          const m = expr.replace(/\s/g, '').match(/^now(?:\(\))?(?:([-+])(\d+)([smhdwMy]))?(?:@\w+)?$/);
+          if (!m) return fallback;
+          return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();
+        }
+        const TO = toMs(TF_TO, Date.now());
+        const FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);
+
+        // ---- DEM unit weights (classic DEM rate card) - align with your contract ----
+        const DEM_WEIGHTS = {
+          webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,
+          mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,
+          customSession: 0.25, customUserActionProperty: 0.01,
+          browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,
+        };
+
+        // ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----
+        async function q(metricSelector, resolution = 'Inf', extra = {}) {
+          try {
+            const res = await metricsClient.query({
+              acceptType: 'application/json; charset=utf-8',
+              metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,
+            });
+            return (res.result && res.result[0] && res.result[0].data) || [];
+          } catch (e) {
+            console.warn('Metric query failed: ' + metricSelector, e);
+            return [];
+          }
+        }
+        const sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);
+        const total = (series) => series.reduce((a, s) => a + sumVals(s), 0);
+        const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+        // Charts lose their field mapping on an empty result ("The field ... is no longer available"),
+        // so chart tiles return one zero-valued placeholder row when there is no data.
+        const NO_DATA = 'No data in timeframe';
+        // Day label for bar-chart categories. An ISO date such as "2026-11-24" is detected as a timestamp, which a
+        // categorical chart cannot use as its category ("The field \"Day\" is no longer available"), so use "24 Nov ’26".
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = (t) => { const d = new Date(t);
+          return String(d.getUTCDate()).padStart(2, '0') + ' ' + MONTHS[d.getUTCMonth()] + ' ’' + String(d.getUTCFullYear()).slice(2); };
+        const byDate = (byDay) => Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+        const orPlaceholder = (rows, placeholder) => (rows.length ? rows : [placeholder]);
+        const dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';
+        const ENTITY_TYPES = {
+          HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',
+          CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',
+          MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',
+          SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',
+          CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',
+          AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',
+        };
+        const entityType = (id) => {
+          if (!id) return 'Unattributed';
+          const p = id.replace(/-[0-9A-F]{16}$/i, '');
+          return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();
+        };
+
+        export default async function () {
+          const OTHER_POOLS = [
+            ['Log Monitoring', 'builtin:billing.ddu.log'],
+            ['Events', 'builtin:billing.ddu.events'],
+            ['Traces', 'builtin:billing.ddu.traces'],
+            ['Serverless', 'builtin:billing.ddu.serverless'],
+          ];
+          const rows = [];
+          for (const [pool, base] of OTHER_POOLS) {
+            for (const s of await q(base + '.byEntity:splitBy("dt.entity.monitored_entity"):names:sort(value(sum,descending)):limit(25)')) {
+              const id = dimVal(s, 'dt.entity.monitored_entity');
+              rows.push({ Pool: pool, Entity: dimVal(s, 'dt.entity.monitored_entity.name') || id || 'Unattributed', Type: entityType(id),
+                          "Entity ID": id, DDU: round(sumVals(s)) });
+            }
+          }
+          return rows.sort((a, b) => b.DDU - a.DDU).slice(0, 25);
+        }
+      title: Top 25 entities by log / event / trace / serverless DDU
+      type: code
+      visualization: table
+      visualizationSettings:
+        autoSelectVisualization: false
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: DDU
+            suffix: ""
+            unitCategory: unspecified
+    "19":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      description: Non-metric DDU by source description, e.g. log ingest vs. log storage, ingested vs. built-in events, ingested spans.
+      input: |
+        import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+        // ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----
+        const TF_FROM = "$dt_timeframe_from";
+        const TF_TO = "$dt_timeframe_to";
+        const UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };
+        function toMs(expr, fallback) {
+          if (!expr || expr.startsWith('$')) return fallback;
+          const iso = Date.parse(expr);
+          if (!isNaN(iso)) return iso;
+          const m = expr.replace(/\s/g, '').match(/^now(?:\(\))?(?:([-+])(\d+)([smhdwMy]))?(?:@\w+)?$/);
+          if (!m) return fallback;
+          return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();
+        }
+        const TO = toMs(TF_TO, Date.now());
+        const FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);
+
+        // ---- DEM unit weights (classic DEM rate card) - align with your contract ----
+        const DEM_WEIGHTS = {
+          webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,
+          mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,
+          customSession: 0.25, customUserActionProperty: 0.01,
+          browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,
+        };
+
+        // ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----
+        async function q(metricSelector, resolution = 'Inf', extra = {}) {
+          try {
+            const res = await metricsClient.query({
+              acceptType: 'application/json; charset=utf-8',
+              metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,
+            });
+            return (res.result && res.result[0] && res.result[0].data) || [];
+          } catch (e) {
+            console.warn('Metric query failed: ' + metricSelector, e);
+            return [];
+          }
+        }
+        const sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);
+        const total = (series) => series.reduce((a, s) => a + sumVals(s), 0);
+        const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+        // Charts lose their field mapping on an empty result ("The field ... is no longer available"),
+        // so chart tiles return one zero-valued placeholder row when there is no data.
+        const NO_DATA = 'No data in timeframe';
+        // Day label for bar-chart categories. An ISO date such as "2026-11-24" is detected as a timestamp, which a
+        // categorical chart cannot use as its category ("The field \"Day\" is no longer available"), so use "24 Nov ’26".
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = (t) => { const d = new Date(t);
+          return String(d.getUTCDate()).padStart(2, '0') + ' ' + MONTHS[d.getUTCMonth()] + ' ’' + String(d.getUTCFullYear()).slice(2); };
+        const byDate = (byDay) => Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+        const orPlaceholder = (rows, placeholder) => (rows.length ? rows : [placeholder]);
+        const dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';
+        const ENTITY_TYPES = {
+          HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',
+          CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',
+          MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',
+          SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',
+          CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',
+          AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',
+        };
+        const entityType = (id) => {
+          if (!id) return 'Unattributed';
+          const p = id.replace(/-[0-9A-F]{16}$/i, '');
+          return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();
+        };
+
+        export default async function () {
+          const OTHER_POOLS = [
+            ['Log Monitoring', 'builtin:billing.ddu.log'],
+            ['Events', 'builtin:billing.ddu.events'],
+            ['Traces', 'builtin:billing.ddu.traces'],
+            ['Serverless', 'builtin:billing.ddu.serverless'],
+          ];
+          const rows = [];
+          for (const [pool, base] of OTHER_POOLS) {
+            // keep every dimension the metric exposes (e.g. description / source)
+            for (const s of await q(base + '.byDescription:sort(value(sum,descending)):limit(25)')) {
+              const desc = Object.entries(s.dimensionMap || {}).map(([, v]) => v).filter(Boolean).join(' · ') || pool;
+              rows.push({ Pool: pool, Source: desc, DDU: round(sumVals(s)) });
+            }
+          }
+          return rows.filter(r => r.DDU > 0).sort((a, b) => b.DDU - a.DDU).slice(0, 30);
+        }
+      title: Log / event / trace / serverless DDU by source
+      type: code
+      visualization: table
+      visualizationSettings:
+        autoSelectVisualization: false
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: DDU
+            suffix: ""
+            unitCategory: unspecified
+    "20":
+      content: "## \U0001F310 DEM breakdown — applications and synthetic monitors"
+      type: markdown
+    "21":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      description: Web, mobile and custom applications (by domain / URL as named in RUM) ranked by estimated DEM.
+      input: |
+        import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+        // ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----
+        const TF_FROM = "$dt_timeframe_from";
+        const TF_TO = "$dt_timeframe_to";
+        const UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };
+        function toMs(expr, fallback) {
+          if (!expr || expr.startsWith('$')) return fallback;
+          const iso = Date.parse(expr);
+          if (!isNaN(iso)) return iso;
+          const m = expr.replace(/\s/g, '').match(/^now(?:\(\))?(?:([-+])(\d+)([smhdwMy]))?(?:@\w+)?$/);
+          if (!m) return fallback;
+          return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();
+        }
+        const TO = toMs(TF_TO, Date.now());
+        const FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);
+
+        // ---- DEM unit weights (classic DEM rate card) - align with your contract ----
+        const DEM_WEIGHTS = {
+          webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,
+          mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,
+          customSession: 0.25, customUserActionProperty: 0.01,
+          browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,
+        };
+
+        // ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----
+        async function q(metricSelector, resolution = 'Inf', extra = {}) {
+          try {
+            const res = await metricsClient.query({
+              acceptType: 'application/json; charset=utf-8',
+              metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,
+            });
+            return (res.result && res.result[0] && res.result[0].data) || [];
+          } catch (e) {
+            console.warn('Metric query failed: ' + metricSelector, e);
+            return [];
+          }
+        }
+        const sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);
+        const total = (series) => series.reduce((a, s) => a + sumVals(s), 0);
+        const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+        // Charts lose their field mapping on an empty result ("The field ... is no longer available"),
+        // so chart tiles return one zero-valued placeholder row when there is no data.
+        const NO_DATA = 'No data in timeframe';
+        // Day label for bar-chart categories. An ISO date such as "2026-11-24" is detected as a timestamp, which a
+        // categorical chart cannot use as its category ("The field \"Day\" is no longer available"), so use "24 Nov ’26".
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = (t) => { const d = new Date(t);
+          return String(d.getUTCDate()).padStart(2, '0') + ' ' + MONTHS[d.getUTCMonth()] + ' ’' + String(d.getUTCFullYear()).slice(2); };
+        const byDate = (byDay) => Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+        const orPlaceholder = (rows, placeholder) => (rows.length ? rows : [placeholder]);
+        const dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';
+        const ENTITY_TYPES = {
+          HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',
+          CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',
+          MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',
+          SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',
+          CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',
+          AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',
+        };
+        const entityType = (id) => {
+          if (!id) return 'Unattributed';
+          const p = id.replace(/-[0-9A-F]{16}$/i, '');
+          return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();
+        };
+
+        export default async function () {
+          const APP_PARTS = [
+            ['Web', 'builtin:billing.apps.web.sessionsWithoutReplayByApplication', 'dt.entity.application', 'Sessions', DEM_WEIGHTS.webSession],
+            ['Web', 'builtin:billing.apps.web.sessionsWithReplayByApplication', 'dt.entity.application', 'Replay sessions', DEM_WEIGHTS.webSessionReplay],
+            ['Web', 'builtin:billing.apps.web.userActionPropertiesByApplication', 'dt.entity.application', 'Action properties', DEM_WEIGHTS.webUserActionProperty],
+            ['Mobile', 'builtin:billing.apps.mobile.sessionsWithoutReplayByApplication', 'dt.entity.device_application', 'Sessions', DEM_WEIGHTS.mobileSession],
+            ['Mobile', 'builtin:billing.apps.mobile.sessionsWithReplayByApplication', 'dt.entity.device_application', 'Replay sessions', DEM_WEIGHTS.mobileSessionReplay],
+            ['Mobile', 'builtin:billing.apps.mobile.userActionPropertiesByMobileApplication', 'dt.entity.device_application', 'Action properties', DEM_WEIGHTS.mobileUserActionProperty],
+            ['Custom', 'builtin:billing.apps.custom.sessionsWithoutReplayByApplication', 'dt.entity.custom_application', 'Sessions', DEM_WEIGHTS.customSession],
+            ['Custom', 'builtin:billing.apps.custom.userActionPropertiesByDeviceApplication', 'dt.entity.custom_application', 'Action properties', DEM_WEIGHTS.customUserActionProperty],
+          ];
+          const apps = {};
+          for (const [kind, key, dim, col, w] of APP_PARTS) {
+            for (const s of await q(key + ':splitBy("' + dim + '"):names')) {
+              const id = dimVal(s, dim) || Object.values(s.dimensionMap || {})[0] || 'unknown';
+              const a = apps[id] = apps[id] || { Application: dimVal(s, dim + '.name') || id, Type: kind, "App ID": id,
+                Sessions: 0, "Replay sessions": 0, "Action properties": 0, "Estimated DEM": 0 };
+              const n = sumVals(s);
+              a[col] += n; a["Estimated DEM"] += n * w;
+            }
+          }
+          const sum = Object.values(apps).reduce((x, a) => x + a["Estimated DEM"], 0);
+          return Object.values(apps).map(a => ({ ...a, Sessions: round(a.Sessions, 0), "Replay sessions": round(a["Replay sessions"], 0),
+            "Action properties": round(a["Action properties"], 0), "Estimated DEM": round(a["Estimated DEM"]),
+            "Share": sum ? round(a["Estimated DEM"] / sum * 100, 1) : 0 }))
+            .sort((a, b) => b["Estimated DEM"] - a["Estimated DEM"]).slice(0, 50);
+        }
+      title: Estimated DEM by application
+      type: code
+      visualization: table
+      visualizationSettings:
+        autoSelectVisualization: false
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Sessions
+            suffix: ""
+            unitCategory: unspecified
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Replay sessions
+            suffix: ""
+            unitCategory: unspecified
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Action properties
+            suffix: ""
+            unitCategory: unspecified
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Estimated DEM
+            suffix: ""
+            unitCategory: unspecified
+          - baseUnit: count
+            cascade: null
+            decimals: 1
+            delimiter: true
+            displayUnit: null
+            identifier: Share
+            suffix: ' %'
+            unitCategory: unspecified
+    "22":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      description: Top 10 applications by estimated DEM.
+      input: |
+        import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+        // ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----
+        const TF_FROM = "$dt_timeframe_from";
+        const TF_TO = "$dt_timeframe_to";
+        const UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };
+        function toMs(expr, fallback) {
+          if (!expr || expr.startsWith('$')) return fallback;
+          const iso = Date.parse(expr);
+          if (!isNaN(iso)) return iso;
+          const m = expr.replace(/\s/g, '').match(/^now(?:\(\))?(?:([-+])(\d+)([smhdwMy]))?(?:@\w+)?$/);
+          if (!m) return fallback;
+          return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();
+        }
+        const TO = toMs(TF_TO, Date.now());
+        const FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);
+
+        // ---- DEM unit weights (classic DEM rate card) - align with your contract ----
+        const DEM_WEIGHTS = {
+          webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,
+          mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,
+          customSession: 0.25, customUserActionProperty: 0.01,
+          browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,
+        };
+
+        // ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----
+        async function q(metricSelector, resolution = 'Inf', extra = {}) {
+          try {
+            const res = await metricsClient.query({
+              acceptType: 'application/json; charset=utf-8',
+              metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,
+            });
+            return (res.result && res.result[0] && res.result[0].data) || [];
+          } catch (e) {
+            console.warn('Metric query failed: ' + metricSelector, e);
+            return [];
+          }
+        }
+        const sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);
+        const total = (series) => series.reduce((a, s) => a + sumVals(s), 0);
+        const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+        // Charts lose their field mapping on an empty result ("The field ... is no longer available"),
+        // so chart tiles return one zero-valued placeholder row when there is no data.
+        const NO_DATA = 'No data in timeframe';
+        // Day label for bar-chart categories. An ISO date such as "2026-11-24" is detected as a timestamp, which a
+        // categorical chart cannot use as its category ("The field \"Day\" is no longer available"), so use "24 Nov ’26".
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = (t) => { const d = new Date(t);
+          return String(d.getUTCDate()).padStart(2, '0') + ' ' + MONTHS[d.getUTCMonth()] + ' ’' + String(d.getUTCFullYear()).slice(2); };
+        const byDate = (byDay) => Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+        const orPlaceholder = (rows, placeholder) => (rows.length ? rows : [placeholder]);
+        const dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';
+        const ENTITY_TYPES = {
+          HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',
+          CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',
+          MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',
+          SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',
+          CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',
+          AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',
+        };
+        const entityType = (id) => {
+          if (!id) return 'Unattributed';
+          const p = id.replace(/-[0-9A-F]{16}$/i, '');
+          return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();
+        };
+
+        export default async function () {
+          const APP_PARTS = [
+            ['builtin:billing.apps.web.sessionsWithoutReplayByApplication', 'dt.entity.application', DEM_WEIGHTS.webSession],
+            ['builtin:billing.apps.web.sessionsWithReplayByApplication', 'dt.entity.application', DEM_WEIGHTS.webSessionReplay],
+            ['builtin:billing.apps.web.userActionPropertiesByApplication', 'dt.entity.application', DEM_WEIGHTS.webUserActionProperty],
+            ['builtin:billing.apps.mobile.sessionsWithoutReplayByApplication', 'dt.entity.device_application', DEM_WEIGHTS.mobileSession],
+            ['builtin:billing.apps.mobile.sessionsWithReplayByApplication', 'dt.entity.device_application', DEM_WEIGHTS.mobileSessionReplay],
+            ['builtin:billing.apps.mobile.userActionPropertiesByMobileApplication', 'dt.entity.device_application', DEM_WEIGHTS.mobileUserActionProperty],
+            ['builtin:billing.apps.custom.sessionsWithoutReplayByApplication', 'dt.entity.custom_application', DEM_WEIGHTS.customSession],
+            ['builtin:billing.apps.custom.userActionPropertiesByDeviceApplication', 'dt.entity.custom_application', DEM_WEIGHTS.customUserActionProperty],
+          ];
+          const apps = {};
+          for (const [key, dim, w] of APP_PARTS) {
+            for (const s of await q(key + ':splitBy("' + dim + '"):names')) {
+              const name = dimVal(s, dim + '.name') || dimVal(s, dim) || Object.values(s.dimensionMap || {})[0] || 'unknown';
+              apps[name] = (apps[name] || 0) + sumVals(s) * w;
+            }
+          }
+          return orPlaceholder(Object.entries(apps).map(([Application, d]) => ({ Application, DEM: round(d) }))
+            .sort((a, b) => b.DEM - a.DEM).slice(0, 10), { Application: NO_DATA, DEM: 0 });
+        }
+      title: Top applications by estimated DEM
+      type: code
+      visualization: categoricalBarChart
+      visualizationSettings:
+        autoSelectVisualization: false
+        chartSettings:
+          categoricalBarChartSettings:
+            categoryAxis: Application
+            categoryAxisLabel: Application
+            valueAxis:
+              - DEM
+            valueAxisLabel: DEM
+          legend:
+            position: bottom
+          truncationMode: middle
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: DEM
+            suffix: ""
+            unitCategory: unspecified
+    "23":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      description: Browser (clickpath) actions, HTTP monitor requests and third-party results per monitor. Reduce frequency or locations on the top rows to save DEM.
+      input: |
+        import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+        // ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----
+        const TF_FROM = "$dt_timeframe_from";
+        const TF_TO = "$dt_timeframe_to";
+        const UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };
+        function toMs(expr, fallback) {
+          if (!expr || expr.startsWith('$')) return fallback;
+          const iso = Date.parse(expr);
+          if (!isNaN(iso)) return iso;
+          const m = expr.replace(/\s/g, '').match(/^now(?:\(\))?(?:([-+])(\d+)([smhdwMy]))?(?:@\w+)?$/);
+          if (!m) return fallback;
+          return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();
+        }
+        const TO = toMs(TF_TO, Date.now());
+        const FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);
+
+        // ---- DEM unit weights (classic DEM rate card) - align with your contract ----
+        const DEM_WEIGHTS = {
+          webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,
+          mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,
+          customSession: 0.25, customUserActionProperty: 0.01,
+          browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,
+        };
+
+        // ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----
+        async function q(metricSelector, resolution = 'Inf', extra = {}) {
+          try {
+            const res = await metricsClient.query({
+              acceptType: 'application/json; charset=utf-8',
+              metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,
+            });
+            return (res.result && res.result[0] && res.result[0].data) || [];
+          } catch (e) {
+            console.warn('Metric query failed: ' + metricSelector, e);
+            return [];
+          }
+        }
+        const sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);
+        const total = (series) => series.reduce((a, s) => a + sumVals(s), 0);
+        const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+        // Charts lose their field mapping on an empty result ("The field ... is no longer available"),
+        // so chart tiles return one zero-valued placeholder row when there is no data.
+        const NO_DATA = 'No data in timeframe';
+        // Day label for bar-chart categories. An ISO date such as "2026-11-24" is detected as a timestamp, which a
+        // categorical chart cannot use as its category ("The field \"Day\" is no longer available"), so use "24 Nov ’26".
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = (t) => { const d = new Date(t);
+          return String(d.getUTCDate()).padStart(2, '0') + ' ' + MONTHS[d.getUTCMonth()] + ' ’' + String(d.getUTCFullYear()).slice(2); };
+        const byDate = (byDay) => Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+        const orPlaceholder = (rows, placeholder) => (rows.length ? rows : [placeholder]);
+        const dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';
+        const ENTITY_TYPES = {
+          HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',
+          CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',
+          MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',
+          SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',
+          CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',
+          AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',
+        };
+        const entityType = (id) => {
+          if (!id) return 'Unattributed';
+          const p = id.replace(/-[0-9A-F]{16}$/i, '');
+          return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();
+        };
+
+        export default async function () {
+          const SYN = [
+            ['Browser monitor', 'builtin:billing.synthetic.actions', 'dt.entity.synthetic_test', 'Actions', DEM_WEIGHTS.browserAction],
+            ['HTTP monitor', 'builtin:billing.synthetic.requests', 'dt.entity.http_check', 'Requests', DEM_WEIGHTS.httpRequest],
+            ['Third-party monitor', 'builtin:billing.synthetic.external', 'dt.entity.external_synthetic_test', 'Results', DEM_WEIGHTS.thirdPartyResult],
+          ];
+          const rows = [];
+          for (const [kind, key, dim, unit, w] of SYN) {
+            for (const s of await q(key + ':splitBy("' + dim + '"):names:sort(value(sum,descending)):limit(50)')) {
+              const id = dimVal(s, dim) || Object.values(s.dimensionMap || {})[0] || 'unknown';
+              const n = sumVals(s);
+              rows.push({ Monitor: dimVal(s, dim + '.name') || id, Type: kind, "Monitor ID": id, "Billed executions": round(n, 0),
+                          Unit: unit, "Estimated DEM": round(n * w) });
+            }
+          }
+          const sum = rows.reduce((x, r) => x + r["Estimated DEM"], 0);
+          return rows.map(r => ({ ...r, "Share": sum ? round(r["Estimated DEM"] / sum * 100, 1) : 0 }))
+            .sort((a, b) => b["Estimated DEM"] - a["Estimated DEM"]).slice(0, 50);
+        }
+      title: Synthetic monitors by estimated DEM
+      type: code
+      visualization: table
+      visualizationSettings:
+        autoSelectVisualization: false
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Billed executions
+            suffix: ""
+            unitCategory: unspecified
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Estimated DEM
+            suffix: ""
+            unitCategory: unspecified
+          - baseUnit: count
+            cascade: null
+            decimals: 1
+            delimiter: true
+            displayUnit: null
+            identifier: Share
+            suffix: ' %'
+            unitCategory: unspecified
+    "24":
+      content: '## ✅ Porting check — billing metrics available in this environment'
+      type: markdown
+    "25":
+      davis:
+        davisVisualization:
+          isAvailable: true
+        enabled: false
+      description: Checks each billing metric this dashboard uses. After importing into another environment, every row should be OK; 'No data' on a DEM row is expected if that capability (e.g. mobile, Session Replay) is not used.
+      input: |
+        import { metricsClient } from '@dynatrace-sdk/client-classic-environment-v2';
+
+        // ---- Dashboard timeframe -> epoch ms (falls back to last 30 days) ----
+        const TF_FROM = "$dt_timeframe_from";
+        const TF_TO = "$dt_timeframe_to";
+        const UNIT_MS = { s: 1e3, m: 6e4, h: 36e5, d: 864e5, w: 6048e5, M: 2592e6, y: 31536e6 };
+        function toMs(expr, fallback) {
+          if (!expr || expr.startsWith('$')) return fallback;
+          const iso = Date.parse(expr);
+          if (!isNaN(iso)) return iso;
+          const m = expr.replace(/\s/g, '').match(/^now(?:\(\))?(?:([-+])(\d+)([smhdwMy]))?(?:@\w+)?$/);
+          if (!m) return fallback;
+          return m[1] ? Date.now() + (m[1] === '-' ? -1 : 1) * Number(m[2]) * UNIT_MS[m[3]] : Date.now();
+        }
+        const TO = toMs(TF_TO, Date.now());
+        const FROM = toMs(TF_FROM, TO - 30 * UNIT_MS.d);
+
+        // ---- DEM unit weights (classic DEM rate card) - align with your contract ----
+        const DEM_WEIGHTS = {
+          webSession: 0.25, webSessionReplay: 1.0, webUserActionProperty: 0.01,
+          mobileSession: 0.25, mobileSessionReplay: 1.0, mobileUserActionProperty: 0.01,
+          customSession: 0.25, customUserActionProperty: 0.01,
+          browserAction: 1.0, httpRequest: 0.1, thirdPartyResult: 0.1,
+        };
+
+        // ---- Metrics API v2 query; returns [] instead of failing when a metric is missing ----
+        async function q(metricSelector, resolution = 'Inf', extra = {}) {
+          try {
+            const res = await metricsClient.query({
+              acceptType: 'application/json; charset=utf-8',
+              metricSelector, resolution, from: String(FROM), to: String(TO), ...extra,
+            });
+            return (res.result && res.result[0] && res.result[0].data) || [];
+          } catch (e) {
+            console.warn('Metric query failed: ' + metricSelector, e);
+            return [];
+          }
+        }
+        const sumVals = (s) => (s.values || []).reduce((a, v) => a + (v ?? 0), 0);
+        const total = (series) => series.reduce((a, s) => a + sumVals(s), 0);
+        const round = (n, d = 2) => Math.round(n * 10 ** d) / 10 ** d;
+        // Charts lose their field mapping on an empty result ("The field ... is no longer available"),
+        // so chart tiles return one zero-valued placeholder row when there is no data.
+        const NO_DATA = 'No data in timeframe';
+        // Day label for bar-chart categories. An ISO date such as "2026-11-24" is detected as a timestamp, which a
+        // categorical chart cannot use as its category ("The field \"Day\" is no longer available"), so use "24 Nov ’26".
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const dayLabel = (t) => { const d = new Date(t);
+          return String(d.getUTCDate()).padStart(2, '0') + ' ' + MONTHS[d.getUTCMonth()] + ' ’' + String(d.getUTCFullYear()).slice(2); };
+        const byDate = (byDay) => Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([, r]) => r);
+        const orPlaceholder = (rows, placeholder) => (rows.length ? rows : [placeholder]);
+        const dimVal = (s, k) => (s.dimensionMap && s.dimensionMap[k]) || '';
+        const ENTITY_TYPES = {
+          HOST: 'Host', SERVICE: 'Service', PROCESS_GROUP: 'Process group', PROCESS_GROUP_INSTANCE: 'Process',
+          CUSTOM_DEVICE: 'Custom device', CUSTOM_DEVICE_GROUP: 'Custom device group', APPLICATION: 'Web application',
+          MOBILE_APPLICATION: 'Mobile application', CUSTOM_APPLICATION: 'Custom application',
+          SYNTHETIC_TEST: 'Browser monitor', HTTP_CHECK: 'HTTP monitor', CLOUD_APPLICATION: 'K8s workload',
+          CLOUD_APPLICATION_NAMESPACE: 'K8s namespace', KUBERNETES_CLUSTER: 'K8s cluster', KUBERNETES_NODE: 'K8s node',
+          AWS_LAMBDA_FUNCTION: 'AWS Lambda', AZURE_FUNCTION_APP: 'Azure Function', ENVIRONMENT: 'Environment',
+        };
+        const entityType = (id) => {
+          if (!id) return 'Unattributed';
+          const p = id.replace(/-[0-9A-F]{16}$/i, '');
+          return ENTITY_TYPES[p] || p.replace(/_/g, ' ').toLowerCase();
+        };
+
+        export default async function () {
+          const KEYS = [
+            'builtin:billing.ddu.metrics.total', 'builtin:billing.ddu.metrics.byEntity', 'builtin:billing.ddu.metrics.byMetric',
+            'builtin:billing.ddu.includedMetricPerHost',
+            'builtin:billing.ddu.log.total', 'builtin:billing.ddu.log.byEntity', 'builtin:billing.ddu.log.byDescription',
+            'builtin:billing.ddu.events.total', 'builtin:billing.ddu.events.byEntity', 'builtin:billing.ddu.events.byDescription',
+            'builtin:billing.ddu.traces.total', 'builtin:billing.ddu.traces.byEntity', 'builtin:billing.ddu.traces.byDescription',
+            'builtin:billing.ddu.serverless.total', 'builtin:billing.ddu.serverless.byEntity', 'builtin:billing.ddu.serverless.byDescription',
+            'builtin:billing.apps.web.sessionsWithoutReplayByApplication', 'builtin:billing.apps.web.sessionsWithReplayByApplication',
+            'builtin:billing.apps.web.userActionPropertiesByApplication',
+            'builtin:billing.apps.mobile.sessionsWithoutReplayByApplication', 'builtin:billing.apps.mobile.sessionsWithReplayByApplication',
+            'builtin:billing.apps.mobile.userActionPropertiesByMobileApplication',
+            'builtin:billing.apps.custom.sessionsWithoutReplayByApplication', 'builtin:billing.apps.custom.userActionPropertiesByDeviceApplication',
+            'builtin:billing.synthetic.actions', 'builtin:billing.synthetic.requests', 'builtin:billing.synthetic.external',
+          ];
+          const rows = [];
+          for (const key of KEYS) {
+            let status = 'OK', series = 0, value = 0;
+            try {
+              const res = await metricsClient.query({ acceptType: 'application/json; charset=utf-8', metricSelector: key + ':splitBy()',
+                resolution: 'Inf', from: String(FROM), to: String(TO) });
+              const data = (res.result && res.result[0] && res.result[0].data) || [];
+              series = data.length; value = total(data);
+              if (!series || !value) status = 'No data in timeframe';
+            } catch (e) {
+              status = 'Not available: ' + ((e && (e.body?.error?.message || e.message)) || 'error');
+            }
+            rows.push({ "Metric key": key, Status: status, "Total in timeframe": round(value) });
+          }
+          return rows;
+        }
+      title: Billing metric availability
+      type: code
+      visualization: table
+      visualizationSettings:
+        autoSelectVisualization: false
+        unitsOverrides:
+          - baseUnit: count
+            cascade: null
+            decimals: 2
+            delimiter: true
+            displayUnit: null
+            identifier: Total in timeframe
+            suffix: ""
+            unitCategory: unspecified
+    "26":
+      content: |-
+        **Classic DEM weights used for estimates** — web/mobile/custom session **0.25** · session with Session Replay **1.0** ·
+        user action property **0.01** · browser monitor action **1.0** · HTTP monitor request **0.1** · third-party result **0.1**.
+        Adjust `DEM_WEIGHTS` in the tiles if your contract differs. Source: `dashboards/dynatrace-license-consumption/` in the Isatec-RHA-SaaS repo.
+      type: markdown
+  variables: []
+  version: 21
+id: ef0e7377-c9f6-4b5b-8ca5-2aead37a359d
+isPrivate: true
+modificationInfo:
+  createdTime: 2026-11-24T08:53:39.122Z
+  lastModifiedTime: 2026-11-25T01:41:51.914Z
+name: '[RHA] Dynatrace License consumption'
+owner: 956a626b-e054-4ee0-ac93-b0433ffc861d
+shareInfo:
+  isShared: false
+type: dashboard
+version: 9
