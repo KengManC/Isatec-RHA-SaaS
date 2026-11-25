@@ -34,6 +34,11 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
   minute where a JustGo_mobile OS averaged over 30 s, with only `Time start`, `avg_ms` and `OS`.
 
 ### Fixed
+- Dashboard `[RHA] Dynatrace License consumption`: "Top 25 metric keys by DDU" returned no records in a DDU environment
+  because it split by `metric_key`, while the real dimension there is `Metric Key`. No tile names a dimension in its query any
+  more (entity IDs and names are read from whatever dimensions a series has), sorting uses `value(auto, …)` because billing
+  metrics only support `auto`/`value`, empty tables and charts now show the API's error or warning instead of "No records",
+  and the porting check lists each metric's dimension keys and aggregations.
 - Dashboard `[RHA] Dynatrace License consumption`: both daily trend charts showed "The field \"Day\" is no longer
   available" when billing data was returned, because ISO dates (`2026-11-24`) are read as timestamps, which a categorical
   bar chart can't use as its category. Days are now labelled `24 Nov ’26` and still sorted by date.
