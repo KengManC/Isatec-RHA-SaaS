@@ -27,6 +27,9 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
   configuration table and a threshold legend, with a "Sean is Happy" banner image at the top.
 
 ### Changed
+- Dashboard `[RHA] Dynatrace License consumption`: the "DDU by host monitoring mode" section is replaced by "Host units by
+  monitoring mode": estimated host units for Full-Stack, Infrastructure and all hosts (from RAM, classic rules in `HU_RULES`),
+  Dynatrace's connected and assigned host units for comparison, a donut, a per-mode summary and a per-host table.
 - Notebook `[RHA] Claude's Default Testing Notebook`: both JustGo breach tiles show `User events`, the number
   of view events each `avg_ms` was calculated from.
 - Notebook `[RHA] Claude's Default Testing Notebook`: top-3 JustGo services tile shows response time and
@@ -37,6 +40,12 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
   minute where a JustGo_mobile OS averaged over 30 s, with only `Time start`, `avg_ms` and `OS`.
 
 ### Fixed
+- Dashboard `[RHA] Dynatrace License consumption`: "Hosts: metric DDU vs included allowance" showed "Included DDU" in the
+  billions (it read `includedMetricPerHost`, which counts data points) and only billable DDU; it now uses
+  `includedMetricDduPerHost` and shows metric DDU consumed (`byEntityRaw`), included and billable. Per-entity queries read up
+  to 10,000 series instead of 1,000.
+- Dashboard `[RHA] Dynatrace License consumption`: DEM tiles counted billed and unbilled sessions; session metrics are now
+  filtered to `Type = Billed`.
 - Dashboard `[RHA] Dynatrace License consumption`: "Top 25 metric keys by DDU" returned no records in a DDU environment
   because it split by `metric_key`, while the real dimension there is `Metric Key`. No tile names a dimension in its query any
   more (entity IDs and names are read from whatever dimensions a series has), sorting uses `value(auto, …)` because billing
