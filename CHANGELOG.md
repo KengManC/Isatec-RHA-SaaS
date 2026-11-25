@@ -40,6 +40,10 @@ Sections: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
   minute where a JustGo_mobile OS averaged over 30 s, with only `Time start`, `avg_ms` and `OS`.
 
 ### Fixed
+- Dashboard `[RHA] Dynatrace License consumption`: the daily trend charts labelled each bar one day late (the Metrics API
+  stamps a daily value with the end of its day, e.g. today showed as tomorrow) and used UTC days. Days now run 00:00–24:00
+  UTC+8, built from hourly data, with each value assigned to the day its hour started; the porting check shows the
+  timeframe in UTC+8.
 - Dashboard `[RHA] Dynatrace License consumption`: the tiles ignored the dashboard timeframe and always showed the last
   30 days. They now read it from the `context` argument Dashboards pass to code tiles (`$dt_timeframe_from` / `_to`), with the
   `$dt_timeframe_*` text substitution as a backup. Host-unit tiles use the 2 hours before the end of the timeframe, and the

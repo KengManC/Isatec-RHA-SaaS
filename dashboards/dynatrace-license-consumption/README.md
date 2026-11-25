@@ -11,7 +11,7 @@ tiles show no data here. The dashboard is built to be exported and imported into
 | Section | Tiles |
 |---|---|
 | Summary | Total DDU, metric DDU, estimated DEM, Session Replay share, DDU by pool, DEM by capability (chart + table) |
-| Daily trend | DDU per day by pool, estimated DEM per day (RUM / Session Replay / Synthetic) |
+| Daily trend | DDU per day by pool, estimated DEM per day (RUM / Session Replay / Synthetic). Days run 00:00–24:00 **UTC+8** (`DAY_TZ_OFFSET_H` in the tiles); today's bar is partial |
 | DDU: metrics | Metric DDU by entity type, top 25 entities, top 25 metric keys (built-in / calculated / extension / custom), top 50 hosts with metric DDU consumed, included (`includedMetricDduPerHost`) and billable |
 | DDU: other pools | Top entities and sources for Log Monitoring, Events, Traces and Serverless DDU |
 | Host units by monitoring mode | **Estimated** host units for Full-Stack hosts, Infrastructure hosts and all hosts, next to the connected host units Dynatrace reports; a donut by mode; a per-mode summary (hosts, hosts consuming, RAM, host units, share, Total row, plus Dynatrace's connected and assigned host units); and every host with mode, state, RAM and host units. Hosts seen in the 2 h before the end of the dashboard timeframe, from the Entities API (`environment-api:entities:read`) |
@@ -26,7 +26,8 @@ tiles show no data here. The dashboard is built to be exported and imported into
   `$dt_timeframe_to`; the tiles also accept the `$dt_timeframe_*` text substitution and fall back to the last 30 days only if
   neither is available. The first row of the **Billing metric availability** table shows the timeframe used and its source.
   Host units are a point-in-time figure, so those tiles use the hosts seen in the 2 hours before the end of the timeframe.
-  Billing metrics arrive with a 1–2 h delay.
+  Billing metrics arrive with a 1–2 h delay. The daily charts cut days in UTC+8 from hourly data, and the porting
+  check shows the timeframe in UTC+8; everything else adds up the exact timeframe.
 * **DDU** values come straight from Dynatrace. **DEM** values are **estimates**: billed counts (sessions filtered to
   `Type = Billed`) × the classic DEM weights in
   `DEM_WEIGHTS` near the top of each DEM tile:
